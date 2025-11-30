@@ -58,18 +58,20 @@ def home():
 
 @app.route('/register/<username>', methods=['POST'])
 def register_user(username):
-    """Register user with identity key, signed prekey, AND ephemeral key"""
+    """Register user with identity key and signed prekey"""
     if username in users:
         return jsonify({'error': 'User already exists'}), 400
     
-    # Generate identity key pair
+    # Generate identity key pair using your C function
     identity_private = (c_uint8 * 32)()
     identity_public = (c_uint8 * 32)()
     
+    # Generate random private key, then compute public key
     for i in range(32):
         identity_private[i] = secrets.randbits(8)
     
-    base_point = (c_uint8 * 32)(*[9] + [0]*31)
+    # Use your scalar_mult to generate public key (private * G)
+    base_point = (c_uint8 * 32)(*[9] + [0]*31)  # Curve25519 base point
     lib.scalar_mult(identity_public, identity_private, base_point)
     
     # Generate signed prekey pair
@@ -81,28 +83,16 @@ def register_user(username):
     
     lib.scalar_mult(prekey_public, prekey_private, base_point)
     
-    # Generate ephemeral key pair
-    ephemeral_private = (c_uint8 * 32)()
-    ephemeral_public = (c_uint8 * 32)()
-    
-    for i in range(32):
-        ephemeral_private[i] = secrets.randbits(8)
-    
-    lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
-    
     users[username] = {
         'identity_private': list(identity_private),
         'identity_public': list(identity_public),
         'prekey_private': list(prekey_private),
-        'prekey_public': list(prekey_public),
-        'ephemeral_private': list(ephemeral_private),
-        'ephemeral_public': list(ephemeral_public)
+        'prekey_public': list(prekey_public)
     }
     
     return jsonify({
         'identity_public': list(identity_public),
         'prekey_public': list(prekey_public),
-        'ephemeral_public': list(ephemeral_public),
         'status': 'registered'
     })
 
@@ -123,7 +113,7 @@ def get_prekey_bundle(username):
     })
 @app.route('/start_session', methods=['POST'])
 def start_session():
-    """Start session with another user using stored ephemeral keys"""
+    """Start session with another user using deterministic ephemeral keys"""
     data = request.json
     from_user = data['from']
     to_user = data['to']
@@ -134,25 +124,24 @@ def start_session():
     from_user_data = users[from_user]
     to_user_data = users[to_user]
     
-    # Generate AND STORE ephemeral key for this user if not exists
-    if 'ephemeral_private' not in from_user_data:
-        ephemeral_private = (c_uint8 * 32)()
-        ephemeral_public = (c_uint8 * 32)()
-        
-        for i in range(32):
-            ephemeral_private[i] = secrets.randbits(8)
-        
-        base_point = (c_uint8 * 32)(*[9] + [0]*31)
-        lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
-        
-        # Store the ephemeral keys
-        from_user_data['ephemeral_private'] = list(ephemeral_private)
-        from_user_data['ephemeral_public'] = list(ephemeral_public)
+    # Use CANONICAL user pair for deterministic ephemeral key generation
+    user_pair = "_".join(sorted([from_user, to_user]))
+    ephemeral_seed = hash(user_pair) % (2**32)
     
-    # Use stored ephemeral keys
-    ephemeral_private = (c_uint8 * 32)(*from_user_data['ephemeral_private'])
+    # Generate DETERMINISTIC ephemeral key based on user pair
+    ephemeral_private = (c_uint8 * 32)()
+    ephemeral_public = (c_uint8 * 32)()
     
-    # Perform X3DH using STORED ephemeral key
+    # Use the seed to generate consistent ephemeral keys
+    import random
+    random.seed(ephemeral_seed)
+    for i in range(32):
+        ephemeral_private[i] = random.randint(0, 255)
+    
+    base_point = (c_uint8 * 32)(*[9] + [0]*31)
+    lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
+    
+    # Perform X3DH using DETERMINISTIC ephemeral key
     shared_secret = (c_uint8 * 32)()
     
     from_identity_private = (c_uint8 * 32)(*from_user_data['identity_private'])
@@ -175,24 +164,10 @@ def start_session():
         return jsonify({
             'session_index': session_idx,
             'status': 'session_established',
-            'with_user': to_user,
-            'ephemeral_public': from_user_data['ephemeral_public']  # Return for debugging
+            'with_user': to_user
         })
     else:
         return jsonify({'error': 'session_creation_failed'}), 400
-@app.route('/debug')
-def debug():
-    """Debug endpoint to see what's happening"""
-    debug_info = {
-        'users': list(users.keys()),
-        'sessions': sessions,
-        'user_keys': {user: {
-            'identity_public': users[user]['identity_public'][:4],  # First 4 bytes
-            'has_ephemeral': 'ephemeral_public' in users[user]
-        } for user in users},
-        'pending_messages_count': len(pending_messages)
-    }
-    return jsonify(debug_info)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
