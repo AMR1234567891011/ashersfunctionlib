@@ -124,51 +124,38 @@ def start_session():
     from_user_data = users[from_user]
     to_user_data = users[to_user]
     
-    # Determine who is initiator based on alphabetical order (for demo)
-    # This ensures consistent role assignment
-    initiator, responder = sorted([from_user, to_user])
+    # Store who initiated this session request
+    session_key = f"{from_user}-{to_user}"
     
-    if from_user == initiator:
-        # INITIATOR (Alice) calls x3dh_woS
-        # Generate ephemeral key for initiator
-        ephemeral_private = (c_uint8 * 32)()
-        ephemeral_public = (c_uint8 * 32)()
-        
-        for i in range(32):
-            ephemeral_private[i] = secrets.randbits(8)
-        
-        base_point = (c_uint8 * 32)(*[9] + [0]*31)
-        lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
-        
-        # Store ephemeral key for responder to use later
-        from_user_data['ephemeral_private'] = list(ephemeral_private)
-        from_user_data['ephemeral_public'] = list(ephemeral_public)
-        
-        # x3dh_woS(shared_secret, initiator_ik_priv, responder_ik_pub, initiator_ek_priv, responder_spk_pub)
-        shared_secret = (c_uint8 * 32)()
-        lib.x3dh_woS(shared_secret,
-                    (c_uint8 * 32)(*from_user_data['identity_private']),
-                    (c_uint8 * 32)(*to_user_data['identity_public']),
-                    ephemeral_private,
-                    (c_uint8 * 32)(*to_user_data['prekey_public']))
-        
-    else:
-        # RESPONDER (Bob) calls x3dh_woR
-        # Use initiator's stored ephemeral public key
-        initiator_data = users[initiator]
-        
-        if 'ephemeral_public' not in initiator_data:
-            return jsonify({'error': 'Initiator has no ephemeral key'}), 400
-        
-        # x3dh_woR(shared_secret, initiator_ik_pub, responder_ik_priv, initiator_ek_pub, responder_spk_priv)
-        shared_secret = (c_uint8 * 32)()
-        lib.x3dh_woR(shared_secret,
-                    (c_uint8 * 32)(*initiator_data['identity_public']),
-                    (c_uint8 * 32)(*from_user_data['identity_private']),
-                    (c_uint8 * 32)(*initiator_data['ephemeral_public']),
-                    (c_uint8 * 32)(*from_user_data['prekey_private']))
+    # INITIATOR (the one who sent the request)
+    # Generate ephemeral key for initiator
+    ephemeral_private = (c_uint8 * 32)()
+    ephemeral_public = (c_uint8 * 32)()
     
-    # Create session
+    for i in range(32):
+        ephemeral_private[i] = secrets.randbits(8)
+    
+    base_point = (c_uint8 * 32)(*[9] + [0]*31)
+    lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
+    
+    # Store ephemeral key for responder to use later
+    # Use session_key to ensure proper retrieval
+    if 'ephemeral_keys' not in from_user_data:
+        from_user_data['ephemeral_keys'] = {}
+    from_user_data['ephemeral_keys'][session_key] = {
+        'private': list(ephemeral_private),
+        'public': list(ephemeral_public)
+    }
+    
+    # x3dh_woS(shared_secret, initiator_ik_priv, responder_ik_pub, initiator_ek_priv, responder_spk_pub)
+    shared_secret = (c_uint8 * 32)()
+    lib.x3dh_woS(shared_secret,
+                (c_uint8 * 32)(*from_user_data['identity_private']),
+                (c_uint8 * 32)(*to_user_data['identity_public']),
+                ephemeral_private,
+                (c_uint8 * 32)(*to_user_data['prekey_public']))
+    
+    # Create session for initiator
     session_idx = lib.session_manager_create_session(
         ctypes.byref(global_sm),
         shared_secret,
@@ -176,12 +163,86 @@ def start_session():
     )
     
     if session_idx >= 0:
-        sessions[from_user] = session_idx
+        sessions[from_user] = {
+            'session_index': session_idx,
+            'with_user': to_user,
+            'shared_secret': list(shared_secret),
+            'role': 'initiator'
+        }
+        
+        # Also create session for responder (they'll use the same shared secret)
+        responder_session_idx = lib.session_manager_create_session(
+            ctypes.byref(global_sm),
+            shared_secret,
+            (c_uint8 * 32)(*from_user_data['identity_public'])
+        )
+        
+        if responder_session_idx >= 0:
+            sessions[to_user] = {
+                'session_index': responder_session_idx,
+                'with_user': from_user,
+                'shared_secret': list(shared_secret),
+                'role': 'responder',
+                'ephemeral_public': list(ephemeral_public)  # Store for responder
+            }
+        
         return jsonify({
             'session_index': session_idx,
             'status': 'session_established',
             'with_user': to_user,
-            'role': 'initiator' if from_user == initiator else 'responder'
+            'role': 'initiator'
+        })
+    else:
+        return jsonify({'error': 'session_creation_failed'}), 400
+@app.route('/complete_session', methods=['POST'])
+def complete_session():
+    """Responder completes session setup using initiator's ephemeral key"""
+    data = request.json
+    from_user = data['from']  # responder
+    to_user = data['to']      # initiator
+    
+    if from_user not in users or to_user not in users:
+        return jsonify({'error': 'User not found'}), 404
+    
+    from_user_data = users[from_user]
+    to_user_data = users[to_user]
+    
+    session_key = f"{to_user}-{from_user}"  # initiator-responder
+    
+    # Check if initiator has stored ephemeral key
+    if ('ephemeral_keys' not in to_user_data or 
+        session_key not in to_user_data['ephemeral_keys']):
+        return jsonify({'error': 'Initiator has no ephemeral key'}), 400
+    
+    ephemeral_public = to_user_data['ephemeral_keys'][session_key]['public']
+    
+    # x3dh_woR(shared_secret, initiator_ik_pub, responder_ik_priv, initiator_ek_pub, responder_spk_priv)
+    shared_secret = (c_uint8 * 32)()
+    lib.x3dh_woR(shared_secret,
+                (c_uint8 * 32)(*to_user_data['identity_public']),
+                (c_uint8 * 32)(*from_user_data['identity_private']),
+                (c_uint8 * 32)(*ephemeral_public),
+                (c_uint8 * 32)(*from_user_data['prekey_private']))
+    
+    # Create session for responder
+    session_idx = lib.session_manager_create_session(
+        ctypes.byref(global_sm),
+        shared_secret,
+        (c_uint8 * 32)(*to_user_data['identity_public'])
+    )
+    
+    if session_idx >= 0:
+        sessions[from_user] = {
+            'session_index': session_idx,
+            'with_user': to_user,
+            'shared_secret': list(shared_secret),
+            'role': 'responder'
+        }
+        return jsonify({
+            'session_index': session_idx,
+            'status': 'session_established',
+            'with_user': to_user,
+            'role': 'responder'
         })
     else:
         return jsonify({'error': 'session_creation_failed'}), 400

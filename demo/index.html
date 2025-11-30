@@ -294,9 +294,43 @@
             if (result && result.status === 'session_established') {
                 addMessage(`SESSION ESTABLISHED with ${targetUser}`, 'success');
                 addMessage(`Session index: ${result.session_index}`, 'session-info');
+                addMessage(`Role: ${result.role}`, 'session-info');
                 currentSession = result;
+                
+                // If we're the initiator, notify the other user to complete their session
+                if (result.role === 'initiator') {
+                    addMessage(`Notified ${targetUser} to complete session setup`, 'session-info');
+                }
             } else {
                 addMessage(`Session failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        // Add function for responder to complete session
+        async function completeSession() {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            const targetUser = prompt('Complete session with user:');
+            if (!targetUser) return;
+
+            const result = await backendRequest('/complete_session', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser
+                })
+            });
+
+            if (result && result.status === 'session_established') {
+                addMessage(`SESSION COMPLETED with ${targetUser}`, 'success');
+                addMessage(`Session index: ${result.session_index}`, 'session-info');
+                addMessage(`Role: ${result.role}`, 'session-info');
+                currentSession = result;
+            } else {
+                addMessage(`Session completion failed: ${result?.error || 'Unknown error'}`, 'error');
             }
         }
 
@@ -415,12 +449,17 @@
                         addMessage('  tests    - Run crypto test suite');
                         addMessage('  register - Register user');
                         addMessage('  users    - Get available users');
+                        addMessage('  complete - Accept connection with user')
                         addMessage('  session  - Start session with user');
                         addMessage('  send     - Send message');
                         addMessage('  getmsgs  - Get messages');
                         addMessage('  theme    - Toggle theme');
                         addMessage('  clear    - Clear terminal');
                         addMessage('  help     - Show this help', 'success');
+                        break;
+                    // Add to the command switch case
+                    case 'complete':
+                        completeSession();
                         break;
                     case 'debug':
                         debugBackend();
