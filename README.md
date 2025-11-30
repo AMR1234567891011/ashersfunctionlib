@@ -69,6 +69,6 @@ Complete cryptographic suite implementing SHA-256, HMAC, HKDF, X25519, and X3DH 
 
 ## Build & Run
 ```bash
-gcc -o crypto_test main.c sha256.c X25519.c X3DH.c
+gcc -o crypto_test main.c sha256.c X25519.c X3DH.c session_manager.c session_test.c
 ./crypto_test
 ```
