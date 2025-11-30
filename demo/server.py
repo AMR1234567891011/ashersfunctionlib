@@ -258,36 +258,40 @@ def send_message():
     if username not in sessions:
         return jsonify({'error': 'No active session'}), 400
     
-    session_idx = sessions[username]
+    # Get session info - FIX: Extract session_index from the session dict
+    session_info = sessions[username]
+    session_idx = session_info['session_index']
     
     # Encrypt message using your C session manager
     plaintext = message.encode('utf-8')
     plaintext_buf = (c_uint8 * len(plaintext))(*plaintext)
-    ciphertext_buf = (c_uint8 * len(plaintext))()
+    ciphertext_buf = (c_uint8 * (len(plaintext) + 64))()  # Allow extra space for encryption overhead
     
+    # FIX: Ensure session_idx is passed as c_int
     result = lib.session_send_message(
         ctypes.byref(global_sm),
-        session_idx,
+        ctypes.c_int(session_idx),  # Explicitly cast to c_int
         plaintext_buf,
-        len(plaintext),
+        ctypes.c_uint32(len(plaintext)),  # Explicitly cast length
         ciphertext_buf
     )
     
     if result == 0:
-        ciphertext = list(ciphertext_buf)
+        # Get actual ciphertext length (might be different from plaintext length)
+        ciphertext = list(ciphertext_buf)[:len(plaintext)]  # Adjust if your C function returns different length
         pending_messages.append({
             'to': to_username,
             'from': username,
             'ciphertext': ciphertext,
-            'length': len(plaintext)
+            'length': len(plaintext)  # Store original length for decryption
         })
         
         return jsonify({
             'status': 'sent',
-            'ciphertext': ciphertext
+            'ciphertext_length': len(ciphertext)
         })
     else:
-        return jsonify({'error': 'send_failed'}), 400
+        return jsonify({'error': f'send_failed with code {result}'}), 400
 
 @app.route('/get_messages/<username>')
 def get_messages(username):
@@ -298,31 +302,35 @@ def get_messages(username):
     decrypted_messages = []
     for msg in user_messages:
         if username in sessions:
-            session_idx = sessions[username]
+            session_info = sessions[username]
+            session_idx = session_info['session_index']
+            
             ciphertext_buf = (c_uint8 * msg['length'])(*msg['ciphertext'])
             plaintext_buf = (c_uint8 * msg['length'])()
             
+            # FIX: Explicit type casting
             result = lib.session_receive_message(
                 ctypes.byref(global_sm),
-                session_idx,
+                ctypes.c_int(session_idx),  # Explicit cast
                 ciphertext_buf,
-                msg['length'],
+                ctypes.c_uint32(msg['length']),  # Explicit cast
                 plaintext_buf,
                 None
             )
             
             if result == 0:
-                plaintext = bytes(plaintext_buf).decode('utf-8', errors='ignore')
+                plaintext = bytes(plaintext_buf).decode('utf-8', errors='ignore').rstrip('\x00')
                 decrypted_messages.append({
                     'from': msg['from'],
                     'message': plaintext
                 })
+            else:
+                print(f"Decryption failed with code: {result}")
     
     # Remove delivered messages
     pending_messages[:] = [msg for msg in pending_messages if msg['to'] != username]
     
     return jsonify(decrypted_messages)
-
 def verify_crypto_functions():
     """Verify C crypto functions work correctly before serving"""
     print("=== VERIFYING CRYPTO FUNCTIONS ===")
