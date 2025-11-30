@@ -15,6 +15,9 @@
             height: 100vh;
             overflow: hidden;
         }
+        body.blue-theme {
+            color: #0ff;
+        }
         #terminal {
             height: 100vh;
             display: flex;
@@ -27,10 +30,17 @@
             background: #001100;
             border-bottom: 1px solid #0f0;
         }
+        .blue-theme #output {
+            background: #001133;
+            border-bottom: 1px solid #0ff;
+        }
         #input-area {
             padding: 10px;
             background: #000;
             border-top: 1px solid #0f0;
+        }
+        .blue-theme #input-area {
+            border-top: 1px solid #0ff;
         }
         #command-input {
             background: transparent;
@@ -41,9 +51,15 @@
             width: 100%;
             outline: none;
         }
+        .blue-theme #command-input {
+            color: #0ff;
+        }
         .prompt {
             color: #0f0;
             margin-right: 10px;
+        }
+        .blue-theme .prompt {
+            color: #0ff;
         }
         .command-line {
             display: flex;
@@ -57,6 +73,10 @@
             background: #002200;
             border-bottom: 1px solid #0f0;
         }
+        .blue-theme .button-row {
+            background: #002233;
+            border-bottom: 1px solid #0ff;
+        }
         .terminal-button {
             background: #003300;
             color: #0f0;
@@ -66,11 +86,22 @@
             cursor: pointer;
             border-radius: 3px;
         }
+        .blue-theme .terminal-button {
+            background: #003355;
+            color: #0ff;
+            border: 1px solid #0ff;
+        }
         .terminal-button:hover {
             background: #005500;
         }
+        .blue-theme .terminal-button:hover {
+            background: #005577;
+        }
         .terminal-button:active {
             background: #007700;
+        }
+        .blue-theme .terminal-button:active {
+            background: #007799;
         }
         .message {
             margin: 5px 0;
@@ -78,14 +109,25 @@
             border-left: 2px solid #0f0;
             background: #002200;
         }
+        .blue-theme .message {
+            border-left: 2px solid #0ff;
+            background: #002233;
+        }
         .error {
             color: #f00;
             border-left-color: #f00;
             background: #220000;
         }
+        .blue-theme .error {
+            background: #330000;
+        }
         .success {
             color: #0f0;
             border-left-color: #0f0;
+        }
+        .blue-theme .success {
+            color: #0ff;
+            border-left-color: #0ff;
         }
         .session-info {
             color: #0ff;
@@ -94,22 +136,42 @@
             margin: 5px 0;
             border-left: 2px solid #0ff;
         }
+        .blue-theme .session-info {
+            color: #0f0;
+            background: #002200;
+            border-left: 2px solid #0f0;
+        }
+        .user-list {
+            color: #ff0;
+            background: #222200;
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 2px solid #ff0;
+        }
+        .blue-theme .user-list {
+            color: #f0f;
+            background: #220022;
+            border-left: 2px solid #f0f;
+        }
     </style>
 </head>
 <body>
     <div id="terminal">
         <div class="button-row">
             <button class="terminal-button" onclick="runTests()">RUN TESTS</button>
-            <button class="terminal-button" onclick="initSessions()">INIT SESSIONS</button>
-            <button class="terminal-button" onclick="createSession()">NEW SESSION</button>
-            <button class="terminal-button" onclick="sendMessage()">SEND MSG</button>
-            <button class="terminal-button" onclick="receiveMessage()">RECV MSG</button>
+            <button class="terminal-button" onclick="registerUser()">REGISTER</button>
+            <button class="terminal-button" onclick="getUsers()">GET USERS</button>
+            <button class="terminal-button" onclick="initiateSession()">START SESSION</button>
+            <button class="terminal-button" onclick="sendBackendMessage()">SEND MSG</button>
+            <button class="terminal-button" onclick="getMessages()">GET MSGS</button>
+            <button class="terminal-button" onclick="toggleTheme()">THEME</button>
             <button class="terminal-button" onclick="clearTerminal()">CLEAR</button>
         </div>
         
         <div id="output">
             <div class="message success">CRYPTO TERMINAL READY</div>
-            <div class="message">> Initializing WASM module...</div>
+            <div class="message">> Backend: http://localhost:8000</div>
+            <div class="message">> Type "help" for commands</div>
         </div>
         
         <div id="input-area">
@@ -125,9 +187,18 @@
     <script>
         const outputDiv = document.getElementById('output');
         const commandInput = document.getElementById('command-input');
+        const BACKEND_URL = 'http://localhost:8000';
         
-        let currentSessionIdx = -1;
-        let pendingMessages = [];
+        let currentUsername = '';
+        let availableUsers = [];
+        let currentSession = null;
+
+        // Theme management
+        function toggleTheme() {
+            document.body.classList.toggle('blue-theme');
+            const isBlue = document.body.classList.contains('blue-theme');
+            addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
+        }
 
         Module = {
             onRuntimeInitialized: function() {
@@ -155,6 +226,128 @@
             addMessage('TERMINAL CLEARED', 'success');
         }
 
+        // Backend API functions
+        async function backendRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                return await response.json();
+            } catch (error) {
+                addMessage(`Backend error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function registerUser() {
+            const username = prompt('Enter your username:');
+            if (!username) return;
+            
+            currentUsername = username;
+            const result = await backendRequest(`/register/${username}`, {
+                method: 'POST'
+            });
+            
+            if (result && !result.error) {
+                addMessage(`REGISTERED as ${username}`, 'success');
+                addMessage(`Identity key: ${result.identity_public?.slice(0, 8).map(b => b.toString(16)).join('')}...` || 'Keys generated', 'session-info');
+            } else {
+                addMessage(`Registration failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function getUsers() {
+            const users = await backendRequest('/users');
+            if (users && Array.isArray(users)) {
+                availableUsers = users;
+                addMessage('AVAILABLE USERS:', 'user-list');
+                users.forEach(user => {
+                    addMessage(`  - ${user}`, 'user-list');
+                });
+            }
+        }
+
+        async function initiateSession() {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            const targetUser = prompt('Enter target username:');
+            if (!targetUser) {
+                addMessage('Invalid target user', 'error');
+                return;
+            }
+
+            const result = await backendRequest('/initiate_session', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser
+                })
+            });
+
+            if (result && result.status === 'session_initiated') {
+                addMessage(`SESSION INITIATED with ${targetUser}`, 'success');
+                addMessage(`Session index: ${result.session_index}`, 'session-info');
+                currentSession = result;
+            } else {
+                addMessage(`Session initiation failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function sendBackendMessage() {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            const targetUser = prompt('Enter recipient username:');
+            if (!targetUser) return;
+
+            const message = prompt('Enter message:');
+            if (!message) return;
+
+            const result = await backendRequest('/send_message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser,
+                    message: message
+                })
+            });
+
+            if (result && result.status === 'sent') {
+                addMessage(`MESSAGE SENT to ${targetUser}: "${message}"`, 'success');
+            } else {
+                addMessage(`Send failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function getMessages() {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            const messages = await backendRequest(`/get_messages/${currentUsername}`);
+            if (messages && Array.isArray(messages)) {
+                if (messages.length === 0) {
+                    addMessage('No new messages', 'message');
+                } else {
+                    addMessage(`RECEIVED ${messages.length} MESSAGE(S):`, 'success');
+                    messages.forEach(msg => {
+                        addMessage(`From ${msg.from}: ${msg.message}`, 'session-info');
+                    });
+                }
+            }
+        }
+
+        // WASM test functions (keep your existing ones)
         function runTests() {
             addMessage('EXECUTING CRYPTO TEST SUITE...', 'success');
             Module._main_tests();
@@ -163,9 +356,9 @@
         function initSessions() {
             const result = Module._wasm_init_sessions();
             if (result === 0) {
-                addMessage('SESSION MANAGER INITIALIZED', 'success');
+                addMessage('WASM SESSION MANAGER INITIALIZED', 'success');
             } else {
-                addMessage('FAILED TO INITIALIZE SESSIONS', 'error');
+                addMessage('FAILED TO INITIALIZE WASM SESSIONS', 'error');
             }
         }
 
@@ -181,80 +374,16 @@
             const sharedPtr = allocate(sharedSecret);
             const identityPtr = allocate(remoteIdentity);
             
-            currentSessionIdx = Module._wasm_new_session(sharedPtr, identityPtr);
+            const sessionIdx = Module._wasm_new_session(sharedPtr, identityPtr);
             
             Module._free(sharedPtr);
             Module._free(identityPtr);
             
-            if (currentSessionIdx >= 0) {
-                addMessage(`SESSION CREATED [ID: ${currentSessionIdx}]`, 'success');
-                addMessage(`Session index ${currentSessionIdx} is now active`, 'session-info');
+            if (sessionIdx >= 0) {
+                addMessage(`WASM SESSION CREATED [ID: ${sessionIdx}]`, 'success');
             } else {
-                addMessage('FAILED TO CREATE SESSION', 'error');
+                addMessage('FAILED TO CREATE WASM SESSION', 'error');
             }
-        }
-
-        function sendMessage() {
-            if (currentSessionIdx < 0) {
-                addMessage('ERROR: NO ACTIVE SESSION', 'error');
-                return;
-            }
-
-            const message = prompt('Enter message to send:');
-            if (!message) return;
-
-            const plaintext = new TextEncoder().encode(message);
-            const ciphertext = new Uint8Array(plaintext.length);
-
-            const plainPtr = allocate(plaintext);
-            const cipherPtr = allocate(ciphertext);
-
-            const result = Module._wasm_send_message(currentSessionIdx, plainPtr, plaintext.length, cipherPtr);
-            
-            if (result === 0) {
-                const encrypted = fromCArray(cipherPtr, plaintext.length);
-                pendingMessages.push({ciphertext: encrypted, original: message});
-                addMessage(`MESSAGE SENT: "${message}"`, 'success');
-                addMessage(`Ciphertext: ${Array.from(encrypted).map(b => b.toString(16).padStart(2, '0')).join('')}`, 'session-info');
-            } else {
-                addMessage('SEND FAILED', 'error');
-            }
-
-            Module._free(plainPtr);
-            Module._free(cipherPtr);
-        }
-
-        function receiveMessage() {
-            if (currentSessionIdx < 0) {
-                addMessage('ERROR: NO ACTIVE SESSION', 'error');
-                return;
-            }
-
-            if (pendingMessages.length === 0) {
-                addMessage('NO PENDING MESSAGES', 'error');
-                return;
-            }
-
-            const messageData = pendingMessages.shift();
-            const plaintext = new Uint8Array(messageData.ciphertext.length);
-
-            const cipherPtr = allocate(messageData.ciphertext);
-            const plainPtr = allocate(plaintext);
-
-            const result = Module._wasm_receive_message(currentSessionIdx, cipherPtr, messageData.ciphertext.length, plainPtr, null);
-            
-            if (result === 0) {
-                const decoded = new TextDecoder().decode(plaintext);
-                addMessage(`MESSAGE RECEIVED: "${decoded}"`, 'success');
-                if (decoded !== messageData.original) {
-                    addMessage('WARNING: Decrypted message does not match original!', 'error');
-                }
-            } else {
-                addMessage('RECEIVE FAILED', 'error');
-            }
-
-            Module._free(cipherPtr);
-            Module._free(plainPtr);
         }
 
         // Utility functions
@@ -280,27 +409,35 @@
                     case 'help':
                         addMessage('AVAILABLE COMMANDS:', 'success');
                         addMessage('  tests    - Run crypto test suite');
-                        addMessage('  init     - Initialize sessions');
-                        addMessage('  new      - Create new session');
+                        addMessage('  register - Register user');
+                        addMessage('  users    - Get available users');
+                        addMessage('  session  - Start session with user');
                         addMessage('  send     - Send message');
-                        addMessage('  recv     - Receive message');
+                        addMessage('  getmsgs  - Get messages');
+                        addMessage('  theme    - Toggle theme');
                         addMessage('  clear    - Clear terminal');
                         addMessage('  help     - Show this help', 'success');
                         break;
                     case 'tests':
                         runTests();
                         break;
-                    case 'init':
-                        initSessions();
+                    case 'register':
+                        registerUser();
                         break;
-                    case 'new':
-                        createSession();
+                    case 'users':
+                        getUsers();
+                        break;
+                    case 'session':
+                        initiateSession();
                         break;
                     case 'send':
-                        sendMessage();
+                        sendBackendMessage();
                         break;
-                    case 'recv':
-                        receiveMessage();
+                    case 'getmsgs':
+                        getMessages();
+                        break;
+                    case 'theme':
+                        toggleTheme();
                         break;
                     case 'clear':
                         clearTerminal();
@@ -311,6 +448,10 @@
                 }
             }
         });
+
+        // Initialize
+        addMessage('Use buttons above or type commands below', 'message');
+        addMessage('Backend URL: ' + BACKEND_URL, 'session-info');
     </script>
 </body>
 </html>
