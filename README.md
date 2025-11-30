@@ -1,4 +1,4 @@
-# Cryptographic Protocol Implementation
+update the readme with info on new demo and note to expose the 8000 port when running container and to run the following within container, cd demo && chmod +x compile.sh && ./compile.sh && python3 server.py # Cryptographic Protocol Implementation
 
 ## Overview
 Complete cryptographic suite implementing SHA-256, HMAC, HKDF, X25519, and X3DH key agreement protocol. All algorithms implemented from scratch for educational purposes.
