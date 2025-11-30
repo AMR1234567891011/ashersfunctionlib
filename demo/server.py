@@ -9,17 +9,14 @@ import json
 app = Flask(__name__)
 CORS(app)
 
-# Load your C library
 lib = ctypes.CDLL('./libsignal.so')
 
-# Define structures matching your C code
 class SessionManager(Structure):
     _fields_ = [
         ("sessions", c_uint8 * 2560),  # 10 sessions * 256 bytes each
         ("session_count", c_uint8)
     ]
 
-# Setup function signatures for your existing C functions
 lib.session_manager_init.argtypes = [POINTER(SessionManager)]
 lib.session_manager_init.restype = c_int
 
@@ -31,23 +28,15 @@ lib.session_send_message.restype = c_int
 
 lib.session_receive_message.argtypes = [POINTER(SessionManager), c_int, POINTER(c_uint8), c_uint32, POINTER(c_uint8), POINTER(c_uint8)]
 lib.session_receive_message.restype = c_int
-
-# X3DH functions (from your X3DH.h)
 lib.x3dh_woS.argtypes = [POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8)]
 lib.x3dh_woS.restype = None
 
 lib.x3dh_woR.argtypes = [POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8)]
 lib.x3dh_woR.restype = None
-
-# X25519 functions
 lib.scalar_mult.argtypes = [POINTER(c_uint8), POINTER(c_uint8), POINTER(c_uint8)]
 lib.scalar_mult.restype = None
-
-# Global session manager
 global_sm = SessionManager()
 lib.session_manager_init(ctypes.byref(global_sm))
-
-# Store user data
 users = {}  # {username: {identity_private, identity_public, prekey_private, prekey_public}}
 sessions = {}  # {username: session_index}
 pending_messages = []  # Store encrypted messages
@@ -62,16 +51,13 @@ def register_user(username):
     if username in users:
         return jsonify({'error': 'User already exists'}), 400
     
-    # Generate identity key pair using your C function
     identity_private = (c_uint8 * 32)()
     identity_public = (c_uint8 * 32)()
     
     # Generate random private key, then compute public key
     for i in range(32):
         identity_private[i] = secrets.randbits(8)
-    
-    # Use your scalar_mult to generate public key (private * G)
-    base_point = (c_uint8 * 32)(*[9] + [0]*31)  # Curve25519 base point
+    base_point = (c_uint8 * 32)(*[9] + [0]*31)  #BASE POINT IS 9
     lib.scalar_mult(identity_public, identity_private, base_point)
     
     # Generate signed prekey pair
@@ -124,11 +110,8 @@ def start_session():
     from_user_data = users[from_user]
     to_user_data = users[to_user]
     
-    # Store who initiated this session request
     session_key = f"{from_user}-{to_user}"
     
-    # INITIATOR (the one who sent the request)
-    # Generate ephemeral key for initiator
     ephemeral_private = (c_uint8 * 32)()
     ephemeral_public = (c_uint8 * 32)()
     
@@ -138,8 +121,6 @@ def start_session():
     base_point = (c_uint8 * 32)(*[9] + [0]*31)
     lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
     
-    # Store ephemeral key for responder to use later
-    # Use session_key to ensure proper retrieval
     if 'ephemeral_keys' not in from_user_data:
         from_user_data['ephemeral_keys'] = {}
     from_user_data['ephemeral_keys'][session_key] = {
@@ -155,7 +136,6 @@ def start_session():
                 ephemeral_private,
                 (c_uint8 * 32)(*to_user_data['prekey_public']))
     
-    # Create session for initiator
     session_idx = lib.session_manager_create_session(
         ctypes.byref(global_sm),
         shared_secret,
@@ -170,7 +150,6 @@ def start_session():
             'role': 'initiator'
         }
         
-        # Also create session for responder (they'll use the same shared secret)
         responder_session_idx = lib.session_manager_create_session(
             ctypes.byref(global_sm),
             shared_secret,
@@ -183,7 +162,7 @@ def start_session():
                 'with_user': from_user,
                 'shared_secret': list(shared_secret),
                 'role': 'responder',
-                'ephemeral_public': list(ephemeral_public)  # Store for responder
+                'ephemeral_public': list(ephemeral_public) 
             }
         
         return jsonify({
@@ -258,32 +237,29 @@ def send_message():
     if username not in sessions:
         return jsonify({'error': 'No active session'}), 400
     
-    # Get session info - FIX: Extract session_index from the session dict
     session_info = sessions[username]
     session_idx = session_info['session_index']
     
-    # Encrypt message using your C session manager
     plaintext = message.encode('utf-8')
     plaintext_buf = (c_uint8 * len(plaintext))(*plaintext)
-    ciphertext_buf = (c_uint8 * (len(plaintext) + 64))()  # Allow extra space for encryption overhead
+    ciphertext_buf = (c_uint8 * (len(plaintext) + 64))()
     
-    # FIX: Ensure session_idx is passed as c_int
     result = lib.session_send_message(
         ctypes.byref(global_sm),
-        ctypes.c_int(session_idx),  # Explicitly cast to c_int
+        ctypes.c_int(session_idx), 
         plaintext_buf,
-        ctypes.c_uint32(len(plaintext)),  # Explicitly cast length
+        ctypes.c_uint32(len(plaintext)),
         ciphertext_buf
     )
     
     if result == 0:
-        # Get actual ciphertext length (might be different from plaintext length)
-        ciphertext = list(ciphertext_buf)[:len(plaintext)]  # Adjust if your C function returns different length
+        # Get actual ciphertext length 
+        ciphertext = list(ciphertext_buf)[:len(plaintext)] 
         pending_messages.append({
             'to': to_username,
             'from': username,
             'ciphertext': ciphertext,
-            'length': len(plaintext)  # Store original length for decryption
+            'length': len(plaintext) 
         })
         
         return jsonify({
@@ -308,12 +284,11 @@ def get_messages(username):
             ciphertext_buf = (c_uint8 * msg['length'])(*msg['ciphertext'])
             plaintext_buf = (c_uint8 * msg['length'])()
             
-            # FIX: Explicit type casting
             result = lib.session_receive_message(
                 ctypes.byref(global_sm),
-                ctypes.c_int(session_idx),  # Explicit cast
+                ctypes.c_int(session_idx),  
                 ciphertext_buf,
-                ctypes.c_uint32(msg['length']),  # Explicit cast
+                ctypes.c_uint32(msg['length']), 
                 plaintext_buf,
                 None
             )
@@ -327,7 +302,6 @@ def get_messages(username):
             else:
                 print(f"Decryption failed with code: {result}")
     
-    # Remove delivered messages
     pending_messages[:] = [msg for msg in pending_messages if msg['to'] != username]
     
     return jsonify(decrypted_messages)
@@ -335,7 +309,6 @@ def verify_crypto_functions():
     """Verify C crypto functions work correctly before serving"""
     print("=== VERIFYING CRYPTO FUNCTIONS ===")
     
-    # Test data from your C test
     alice_ik_sk = [0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d,
                    0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2, 0x66, 0x45,
                    0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a,
@@ -397,7 +370,7 @@ def verify_crypto_functions():
     print(f"Bob Secret:   {bytes(bob_secret).hex()[:16]}...")
 
     if not secrets_match:
-        print("❌ X3DH FAILED - Secrets don't match!")
+        print("X3DH FAILED - Secrets don't match!")
         return False
 
     # Test session creation and messaging
@@ -417,7 +390,7 @@ def verify_crypto_functions():
     print(f"Session Creation: {session_test_passed} (Alice:{alice_session}, Bob:{bob_session})")
     
     if not session_test_passed:
-        print("❌ Session Creation FAILED!")
+        print("Session Creation FAILED!")
         return False
 
     # Test encryption/decryption
@@ -455,13 +428,12 @@ def verify_crypto_functions():
     print(f"Decrypted: '{decrypted_text}'")
     
     if not message_test_passed:
-        print("❌ Encryption/Decryption FAILED!")
+        print("Encryption/Decryption FAILED!")
         return False
 
-    print("✅ ALL CRYPTO TESTS PASSED!")
+    print("ALL CRYPTO TESTS PASSED!")
     return True
 
-# Run the verification when backend starts
 if __name__ == '__main__':
     lib.session_manager_init(ctypes.byref(global_sm))
     
