@@ -149,26 +149,13 @@ void X3DH_test(){
     //ALICE FIRST COMPUTES
     unsigned char alice_sk[32] = {0x00};
     unsigned char tempA[96] = {0x00};
-    // //                     Lsk 0        Rpk 0
-    // scalar_mult(tempA, alice_ik_sk, bob_spk_pk);
-    // //                           Lsk 1        Rpk 1
-    // scalar_mult((tempA + 32), alice_ek_sk, bob_ik_pk);
-    // //                           Lsk 1         Rpk 0
-    // scalar_mult((tempA + 64), alice_ek_sk, bob_spk_pk);
-    // sha256(tempA, 96, alice_sk);
+
     
     x3dh_woS(alice_sk, alice_ik_sk, bob_ik_pk, alice_ek_sk, bob_spk_pk);
 
     //BOB THEN COMPUTES
     unsigned char bob_sk[32] = {0x00};
     unsigned char tempB[96] = {0x00};
-    // //                      Rsk 0      Lpk 0
-    // scalar_mult(tempB, bob_spk_sk, alice_ik_pk);
-    // //                         Rsk 1        Lpk 1
-    // scalar_mult((tempB + 32), bob_ik_sk, alice_ek_pk);
-    // //                            Rsk 0       Lpk 1
-    // scalar_mult((tempB + 64), bob_spk_sk, alice_ek_pk);
-    // sha256(tempB, 96, bob_sk);
     x3dh_woR(bob_sk, alice_ik_pk, bob_ik_sk, alice_ek_pk, bob_spk_sk);
 
     printf("\nALICE:\n");

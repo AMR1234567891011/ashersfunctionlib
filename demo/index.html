@@ -1,65 +1,473 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Crypto Test Runner</title>
+    <title>Crypto Terminal</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        #output { 
-            background: #000; 
-            color: #0f0; 
-            padding: 20px; 
-            border-radius: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            height: 80vh;
-            overflow-y: auto;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        button { 
-            padding: 10px 20px; 
-            font-size: 16px; 
-            margin: 10px;
+        body {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            overflow: hidden;
+        }
+        body.blue-theme {
+            color: #0ff;
+        }
+        #terminal {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #output {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #001100;
+            border-bottom: 1px solid #0f0;
+        }
+        .blue-theme #output {
+            background: #001133;
+            border-bottom: 1px solid #0ff;
+        }
+        #input-area {
+            padding: 10px;
+            background: #000;
+            border-top: 1px solid #0f0;
+        }
+        .blue-theme #input-area {
+            border-top: 1px solid #0ff;
+        }
+        #command-input {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            width: 100%;
+            outline: none;
+        }
+        .blue-theme #command-input {
+            color: #0ff;
+        }
+        .prompt {
+            color: #0f0;
+            margin-right: 10px;
+        }
+        .blue-theme .prompt {
+            color: #0ff;
+        }
+        .command-line {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: #002200;
+            border-bottom: 1px solid #0f0;
+        }
+        .blue-theme .button-row {
+            background: #002233;
+            border-bottom: 1px solid #0ff;
+        }
+        .terminal-button {
+            background: #003300;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 8px 16px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .blue-theme .terminal-button {
+            background: #003355;
+            color: #0ff;
+            border: 1px solid #0ff;
+        }
+        .terminal-button:hover {
+            background: #005500;
+        }
+        .blue-theme .terminal-button:hover {
+            background: #005577;
+        }
+        .terminal-button:active {
+            background: #007700;
+        }
+        .blue-theme .terminal-button:active {
+            background: #007799;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #0f0;
+            background: #002200;
+        }
+        .blue-theme .message {
+            border-left: 2px solid #0ff;
+            background: #002233;
+        }
+        .error {
+            color: #f00;
+            border-left-color: #f00;
+            background: #220000;
+        }
+        .blue-theme .error {
+            background: #330000;
+        }
+        .success {
+            color: #0f0;
+            border-left-color: #0f0;
+        }
+        .blue-theme .success {
+            color: #0ff;
+            border-left-color: #0ff;
+        }
+        .session-info {
+            color: #0ff;
+            background: #002233;
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 2px solid #0ff;
+        }
+        .blue-theme .session-info {
+            color: #0f0;
+            background: #002200;
+            border-left: 2px solid #0f0;
+        }
+        .user-list {
+            color: #ff0;
+            background: #222200;
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 2px solid #ff0;
+        }
+        .blue-theme .user-list {
+            color: #f0f;
+            background: #220022;
+            border-left: 2px solid #f0f;
         }
     </style>
 </head>
 <body>
-    <h1>Crypto Test Suite Runner</h1>
-    <button onclick="runTests()">Run All Tests</button>
-    <div id="output">Click "Run All Tests" to start...</div>
-    <script src="crypto_wasm.js"></script>
+    <div id="terminal">
+        <div class="button-row">
+            <button class="terminal-button" onclick="runTests()">RUN TESTS</button>
+            <button class="terminal-button" onclick="getUsers()">GET USERS</button>
+            <button class="terminal-button" onclick="getMessages()">GET MSGS</button>
+            <button class="terminal-button" onclick="toggleTheme()">THEME</button>
+            <button class="terminal-button" onclick="clearTerminal()">CLEAR</button>
+        </div>
+        
+        <div id="output">
+            <div class="message success">CRYPTO TERMINAL READY</div>
+            <div class="message">> Backend: http://localhost:8000</div>
+            <div class="message">> Type "help" for commands</div>
+        </div>
+        
+        <div id="input-area">
+            <div class="command-line">
+                <span class="prompt">crypto@terminal:~$</span>
+                <input type="text" id="command-input" placeholder="Type command or use buttons above..." autofocus>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/crypto_wasm.js"></script>
     
     <script>
         const outputDiv = document.getElementById('output');
+        const commandInput = document.getElementById('command-input');
+        const BACKEND_URL = 'http://localhost:8000';
         
+        let currentUsername = '';
+        let availableUsers = [];
+        let currentSession = null;
+
+        function toggleTheme() {
+            document.body.classList.toggle('blue-theme');
+            const isBlue = document.body.classList.contains('blue-theme');
+            addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
+        }
+
         Module = {
             onRuntimeInitialized: function() {
-                console.log('WASM module loaded successfully!');
+                addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
+                addMessage('Type "help" for available commands', 'success');
             },
             print: function(text) {
-                //printf
-                outputDiv.textContent += text;
-                outputDiv.scrollTop = outputDiv.scrollHeight;
+                addMessage(text, 'message');
             },
             printErr: function(text) {
-                //stderr 
-                outputDiv.textContent += 'ERROR: ' + text;
-                outputDiv.scrollTop = outputDiv.scrollHeight;
+                addMessage(text, 'error');
             }
         };
 
-        function runTests() {
-            outputDiv.textContent = 'Running tests...\n';
+        function addMessage(text, type = 'message') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = text;
+            outputDiv.appendChild(messageDiv);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        function clearTerminal() {
+            outputDiv.innerHTML = '';
+            addMessage('TERMINAL CLEARED', 'success');
+        }
+
+        async function backendRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                return await response.json();
+            } catch (error) {
+                addMessage(`Backend error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function registerUser(username) {
+            if (!username) {
+                addMessage('Usage: register <username>', 'error');
+                return;
+            }
             
+            currentUsername = username;
+            const result = await backendRequest(`/register/${username}`, {
+                method: 'POST'
+            });
+            
+            if (result && !result.error) {
+                addMessage(`REGISTERED as ${username}`, 'success');
+                addMessage(`Identity key: ${result.identity_public?.slice(0, 8).map(b => b.toString(16)).join('')}...` || 'Keys generated', 'session-info');
+            } else {
+                addMessage(`Registration failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function getUsers() {
+            const users = await backendRequest('/users');
+            if (users && Array.isArray(users)) {
+                availableUsers = users;
+                addMessage('AVAILABLE USERS:', 'user-list');
+                users.forEach(user => {
+                    addMessage(`  - ${user}`, 'user-list');
+                });
+            }
+        }
+
+        async function startSession(targetUser) {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            if (!targetUser) {
+                addMessage('Usage: session <username>', 'error');
+                return;
+            }
+
+            const result = await backendRequest('/start_session', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser
+                })
+            });
+
+            if (result && result.status === 'session_established') {
+                addMessage(`SESSION ESTABLISHED with ${targetUser}`, 'success');
+                addMessage(`Session index: ${result.session_index}`, 'session-info');
+                addMessage(`Role: ${result.role}`, 'session-info');
+                currentSession = result;
+                
+                if (result.role === 'initiator') {
+                    addMessage(`Notified ${targetUser} to complete session setup`, 'session-info');
+                }
+            } else {
+                addMessage(`Session failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function completeSession(targetUser) {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            if (!targetUser) {
+                addMessage('Usage: complete <username>', 'error');
+                return;
+            }
+
+            const result = await backendRequest('/complete_session', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser
+                })
+            });
+
+            if (result && result.status === 'session_established') {
+                addMessage(`SESSION COMPLETED with ${targetUser}`, 'success');
+                addMessage(`Session index: ${result.session_index}`, 'session-info');
+                addMessage(`Role: ${result.role}`, 'session-info');
+                currentSession = result;
+            } else {
+                addMessage(`Session completion failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function sendBackendMessage(targetUser, message) {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            if (!targetUser || !message) {
+                addMessage('Usage: send <username> <message>', 'error');
+                return;
+            }
+
+            const result = await backendRequest('/send_message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    from: currentUsername,
+                    to: targetUser,
+                    message: message
+                })
+            });
+
+            if (result && result.status === 'sent') {
+                addMessage(`MESSAGE SENT to ${targetUser}: "${message}"`, 'success');
+            } else {
+                addMessage(`Send failed: ${result?.error || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function getMessages() {
+            if (!currentUsername) {
+                addMessage('Please register first', 'error');
+                return;
+            }
+
+            const messages = await backendRequest(`/get_messages/${currentUsername}`);
+            if (messages && Array.isArray(messages)) {
+                if (messages.length === 0) {
+                    addMessage('No new messages', 'message');
+                } else {
+                    addMessage(`RECEIVED ${messages.length} MESSAGE(S):`, 'success');
+                    messages.forEach(msg => {
+                        addMessage(`From ${msg.from}: ${msg.message}`, 'session-info');
+                    });
+                }
+            }
+        }
+
+        function runTests() {
+            addMessage('EXECUTING CRYPTO TEST SUITE...', 'success');
             Module._main_tests();
         }
-        function send_message() {
 
+        async function debugBackend() {
+            const result = await backendRequest('/debug');
+            addMessage('DEBUG INFO:', 'session-info');
+            addMessage(JSON.stringify(result, null, 2), 'session-info');
         }
-        function recieve_message() {
-            
-        }
-        function make_new_session() {
 
+        function allocate(data) {
+            const ptr = Module._malloc(data.length);
+            Module.HEAPU8.set(data, ptr);
+            return ptr;
         }
+
+        function fromCArray(ptr, length) {
+            return Module.HEAPU8.slice(ptr, ptr + length);
+        }
+
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const command = this.value.trim();
+                this.value = '';
+                
+                addMessage(`crypto@terminal:~$ ${command}`, 'message');
+                
+                const parts = command.split(' ');
+                const cmd = parts[0].toLowerCase();
+                const args = parts.slice(1);
+                
+                switch(cmd) {
+                    case 'help':
+                        addMessage('AVAILABLE COMMANDS:', 'success');
+                        addMessage('  register <username>          - Register user', 'success');
+                        addMessage('  users                        - Get available users', 'success');
+                        addMessage('  session <username>           - Start session with user', 'success');
+                        addMessage('  complete <username>          - Complete session with user', 'success');
+                        addMessage('  send <username> <message>    - Send message to user', 'success');
+                        addMessage('  getmsgs                      - Get messages', 'success');
+                        addMessage('  theme                        - Toggle theme', 'success');
+                        addMessage('  clear                        - Clear terminal', 'success');
+                        addMessage('  tests                        - Run crypto tests', 'success');
+                        addMessage('  debug                        - Debug info', 'success');
+                        addMessage('  help                         - Show this help', 'success');
+                        break;
+                    case 'register':
+                        registerUser(args[0]);
+                        break;
+                    case 'users':
+                        getUsers();
+                        break;
+                    case 'session':
+                        startSession(args[0]);
+                        break;
+                    case 'complete':
+                        completeSession(args[0]);
+                        break;
+                    case 'send':
+                        if (args.length >= 2) {
+                            const targetUser = args[0];
+                            const message = args.slice(1).join(' ');
+                            sendBackendMessage(targetUser, message);
+                        } else {
+                            addMessage('Usage: send <username> <message>', 'error');
+                        }
+                        break;
+                    case 'getmsgs':
+                        getMessages();
+                        break;
+                    case 'theme':
+                        toggleTheme();
+                        break;
+                    case 'clear':
+                        clearTerminal();
+                        break;
+                    case 'tests':
+                        runTests();
+                        break;
+                    case 'debug':
+                        debugBackend();
+                        break;
+                    default:
+                        addMessage(`Unknown command: ${command}`, 'error');
+                        addMessage('Type "help" for available commands', 'message');
+                }
+            }
+        });
+
+        addMessage('Use buttons above or type commands below', 'message');
+        addMessage('Backend URL: ' + BACKEND_URL, 'session-info');
     </script>
 </body>
 </html>

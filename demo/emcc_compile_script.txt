@@ -1,1 +1,5 @@
 emcc -O3 -s WASM=1 -s EXPORTED_FUNCTIONS="[_malloc,_free,_sha256,_scalar_mult,_x3dh_woS,_x3dh_woR, _main_tests]" -s EXPORTED_RUNTIME_METHODS="[ccall,cwrap]" -o crypto_wasm.js ../sha256.c ../X25519.c ../X3DH.c ../main_test.c ../session_manager.c ../session_test.c
+
+alt:
+
+emcc -O3 -s WASM=1 -s EXPORTED_FUNCTIONS="[_x3dh_woR,_x3dh_woS, _main_tests,_wasm_init_sessions,_wasm_new_session,_wasm_send_message,_wasm_receive_message,_malloc,_free]" -s EXPORTED_RUNTIME_METHODS="[ccall,cwrap]" -o crypto_wasm.js ../main_test.c ../sha256.c ../X25519.c ../X3DH.c ../session_manager.c ../session_test.c ../wasm_interface.c
