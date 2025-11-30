@@ -161,7 +161,7 @@
             <button class="terminal-button" onclick="runTests()">RUN TESTS</button>
             <button class="terminal-button" onclick="registerUser()">REGISTER</button>
             <button class="terminal-button" onclick="getUsers()">GET USERS</button>
-            <button class="terminal-button" onclick="initiateSession()">START SESSION</button>
+            <button class="terminal-button" onclick="startSession()">START SESSION</button>
             <button class="terminal-button" onclick="sendBackendMessage()">SEND MSG</button>
             <button class="terminal-button" onclick="getMessages()">GET MSGS</button>
             <button class="terminal-button" onclick="toggleTheme()">THEME</button>
@@ -271,19 +271,19 @@
             }
         }
 
-        async function initiateSession() {
+        async function startSession() {
             if (!currentUsername) {
                 addMessage('Please register first', 'error');
                 return;
             }
 
-            const targetUser = prompt('Enter target username:');
+            const targetUser = prompt('Start session with user:');
             if (!targetUser) {
                 addMessage('Invalid target user', 'error');
                 return;
             }
 
-            const result = await backendRequest('/initiate_session', {
+            const result = await backendRequest('/start_session', {
                 method: 'POST',
                 body: JSON.stringify({
                     from: currentUsername,
@@ -291,12 +291,12 @@
                 })
             });
 
-            if (result && result.status === 'session_initiated') {
-                addMessage(`SESSION INITIATED with ${targetUser}`, 'success');
+            if (result && result.status === 'session_established') {
+                addMessage(`SESSION ESTABLISHED with ${targetUser}`, 'success');
                 addMessage(`Session index: ${result.session_index}`, 'session-info');
                 currentSession = result;
             } else {
-                addMessage(`Session initiation failed: ${result?.error || 'Unknown error'}`, 'error');
+                addMessage(`Session failed: ${result?.error || 'Unknown error'}`, 'error');
             }
         }
 
@@ -428,7 +428,7 @@
                         getUsers();
                         break;
                     case 'session':
-                        initiateSession();
+                        startSession();
                         break;
                     case 'send':
                         sendBackendMessage();

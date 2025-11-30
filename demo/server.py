@@ -111,7 +111,56 @@ def get_prekey_bundle(username):
         'identity_public': user['identity_public'],
         'signed_prekey_public': user['prekey_public']
     })
-
+@app.route('/start_session', methods=['POST'])
+def start_session():
+    """Start session with another user - works for both initiator and responder"""
+    data = request.json
+    from_user = data['from']
+    to_user = data['to']
+    
+    if from_user not in users or to_user not in users:
+        return jsonify({'error': 'User not found'}), 404
+    
+    from_user_data = users[from_user]
+    to_user_data = users[to_user]
+    
+    # Generate ephemeral key
+    ephemeral_private = (c_uint8 * 32)()
+    ephemeral_public = (c_uint8 * 32)()
+    
+    for i in range(32):
+        ephemeral_private[i] = secrets.randbits(8)
+    
+    base_point = (c_uint8 * 32)(*[9] + [0]*31)
+    lib.scalar_mult(ephemeral_public, ephemeral_private, base_point)
+    
+    # Perform X3DH
+    shared_secret = (c_uint8 * 32)()
+    
+    from_identity_private = (c_uint8 * 32)(*from_user_data['identity_private'])
+    to_identity_public = (c_uint8 * 32)(*to_user_data['identity_public'])
+    to_prekey_public = (c_uint8 * 32)(*to_user_data['prekey_public'])
+    
+    lib.x3dh_woS(shared_secret, from_identity_private, to_identity_public, 
+                 ephemeral_private, to_prekey_public)
+    
+    # Create session
+    session_idx = lib.session_manager_create_session(
+        ctypes.byref(global_sm),
+        shared_secret,
+        (c_uint8 * 32)(*to_user_data['identity_public'])
+    )
+    
+    if session_idx >= 0:
+        sessions[from_user] = session_idx
+        
+        return jsonify({
+            'session_index': session_idx,
+            'status': 'session_established',
+            'with_user': to_user
+        })
+    else:
+        return jsonify({'error': 'session_creation_failed'}), 400
 @app.route('/initiate_session', methods=['POST'])
 def initiate_session():
     """Alice initiates session with Bob using X3DH"""
