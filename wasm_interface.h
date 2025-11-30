@@ -21,16 +21,12 @@ int wasm_send_message(int session_idx, const unsigned char *plaintext, uint32_t 
 EMSCRIPTEN_KEEPALIVE
 int wasm_receive_message(int session_idx, const unsigned char *ciphertext, uint32_t len, unsigned char *plaintext, const unsigned char *remote_ratchet_pub);
 
-EMSCRIPTEN_KEEPALIVE
-void wasm_run_all_tests();
-
 #else
 //native comp
 #define wasm_init_sessions() 0
 #define wasm_new_session(a, b) -1
 #define wasm_send_message(a, b, c, d) -1
 #define wasm_receive_message(a, b, c, d, e) -1
-#define wasm_run_all_tests()
 #endif
 
 #endif

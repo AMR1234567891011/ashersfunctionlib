@@ -27,9 +27,4 @@ int wasm_receive_message(int session_idx, const unsigned char *ciphertext, uint3
     return session_receive_message(&global_sm, session_idx, ciphertext, len, plaintext, remote_ratchet_pub);
 }
 
-EMSCRIPTEN_KEEPALIVE
-void wasm_run_all_tests() {
-    run_all_tests();
-}
-
 #endif
