@@ -20,4 +20,8 @@ gcc -shared -fPIC -o libsignal.so \
 
 echo "Shared library built: libsignal.so"
 
+mkdir static
+mv crypto_wasm.js static/
+mv crypto_wasm.wasm static/
+
 echo "=== Build complete ==="
