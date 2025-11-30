@@ -27,6 +27,7 @@ WORKDIR /workspace
 ARG GIT_CACHE_BUST=1
 RUN git clone https://github.com/AMR1234567891011/ashersfunctionlib.git .
 RUN git checkout test
+RUN python3 -m pip install flask flask-cors
 # RUN emcc -O3 -s WASM=1 -s EXPORTED_FUNCTIONS="[_x3dh_woR,_x3dh_woS, _main_tests,_wasm_init_sessions,_wasm_new_session,_wasm_send_message,_wasm_receive_message,_malloc,_free]" -s EXPORTED_RUNTIME_METHODS="[ccall,cwrap]" -o crypto_wasm.js ../main_test.c ../sha256.c ../X25519.c ../X3DH.c ../session_manager.c ../session_test.c ../wasm_interface.c
 # RUN gcc -shared -fPIC -o libcrypto.so ../session_manager.c ../sha256.c ../X25519.c ../X3DH.c -I
 EXPOSE 8000
