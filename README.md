@@ -1,7 +1,7 @@
 # Cryptographic Protocol Implementation
 
 ## Overview
-Complete cryptographic suite implementing SHA-256, HMAC, HKDF, X25519, and X3DH key agreement protocol. All algorithms implemented from scratch for educational purposes.
+Complete cryptographic suite implementing SHA-256, HMAC, HKDF, X25519, and X3DH key agreement protocol. All algorithms implemented from scratch for educational purposes. Includes a web-based demo application with Flask backend and WebAssembly frontend.
 
 ## Test Suite
 
@@ -67,8 +67,51 @@ Complete cryptographic suite implementing SHA-256, HMAC, HKDF, X25519, and X3DH 
 - **X25519**: Elliptic curve cryptography
 - **X3DH**: Multi-stage key agreement protocol
 
+## Demo Application
+
+A web-based demonstration showcasing the cryptographic protocols in action:
+
+### Features:
+- **Web Interface**: Terminal-style UI with green/blue themes
+- **Real-time Messaging**: Encrypted message exchange between users
+- **Session Management**: X3DH key agreement and session establishment
+- **WASM Integration**: Cryptographic functions compiled to WebAssembly
+- **REST API**: Flask backend with C library integration
+
+### Quick Start:
+```bash
+# Build and run the demo application
+cd demo && chmod +x compile.sh && ./compile.sh && python3 server.py
+```
+**Important**: When running in a container, expose port 8000 to access the web interface.
+
+### Usage:
+1. Access the web interface at `http://localhost:8000`
+2. Register users with `register <username>` command
+3. Establish sessions with `session <username>` (initiator) and `complete <username>` (responder)
+4. Exchange encrypted messages with `send <username> <message>`
+5. Retrieve messages with `getmsgs`
+
 ## Build & Run
+
+### Standalone Tests:
 ```bash
 gcc -o crypto_test main.c sha256.c X25519.c X3DH.c session_manager.c session_test.c
 ./crypto_test
 ```
+### Demo Application:
+*** Build by running: ***
+```bash
+docker build ./demo signal_demo
+docker run -it --rm -p 8000:8000 signal_demo
+```
+*** Within container start webser by running: ***
+```bash
+chmod +x ./demo/compile.sh
+./demo/compile.sh
+python3 ./demo/server.py
+```
+# THIS IMPLEMENTATION IS ONLY FOR EDUCATION AND REALLY SUCKS FOR SECUTIRY 
+
+
+
