@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Crypto Test Runner</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        #output { 
+            background: #000; 
+            color: #0f0; 
+            padding: 20px; 
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            height: 80vh;
+            overflow-y: auto;
+        }
+        button { 
+            padding: 10px 20px; 
+            font-size: 16px; 
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Crypto Test Suite Runner</h1>
+    <button onclick="runTests()">Run All Tests</button>
+    <div id="output">Click "Run All Tests" to start...</div>
+
+    <!-- Load your compiled WASM test file -->
+    <script src="crypto_wasm.js"></script>
+    
+    <script>
+        const outputDiv = document.getElementById('output');
+        
+        // Configure Emscripten to capture stdout/stderr
+        Module = {
+            onRuntimeInitialized: function() {
+                console.log('WASM module loaded successfully!');
+            },
+            print: function(text) {
+                // This captures printf from C code
+                outputDiv.textContent += text;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            },
+            printErr: function(text) {
+                // This captures stderr from C code  
+                outputDiv.textContent += 'ERROR: ' + text;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+        };
+
+        function runTests() {
+            outputDiv.textContent = 'Running tests...\n';
+            
+            // Call your C main() function
+            Module._main_tests();
+        }
+        function send_message() {
+
+        }
+        function recieve_message() {
+            
+        }
+    </script>
+</body>
+</html>

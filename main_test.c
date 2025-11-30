@@ -176,7 +176,7 @@ void X3DH_test(){
     printkey(bob_sk);
     
 }
-int main(){
+void main_tests() {
     printf("\nHASH TEST\n");
     hash_test();
 
@@ -191,5 +191,7 @@ int main(){
     
     printf("\nX3DH TEST\n");
     X3DH_test();
+}
+int main(){
     return 0;
 }

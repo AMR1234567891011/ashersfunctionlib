@@ -1,0 +1,1 @@
+emcc -O3 -s WASM=1 -s EXPORTED_FUNCTIONS="[_malloc,_free,_sha256,_scalar_mult,_x3dh_woS,_x3dh_woR, _main_tests]" -s EXPORTED_RUNTIME_METHODS="[ccall,cwrap]" -o crypto_wasm.js ashersfunctionlib/sha256.c ashersfunctionlib/X25519.c ashersfunctionlib/X3DH.c ashersfunctionlib/main_test.c
