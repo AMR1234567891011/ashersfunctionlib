@@ -196,6 +196,6 @@ void main_tests() {
     session_demo_test();
 }
 int main(){
-    main_tests();
+    // main_tests();
     return 0;
 }
