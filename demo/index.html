@@ -1,65 +1,316 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Crypto Test Runner</title>
+    <title>Crypto Terminal</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        #output { 
-            background: #000; 
-            color: #0f0; 
-            padding: 20px; 
-            border-radius: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            height: 80vh;
-            overflow-y: auto;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        button { 
-            padding: 10px 20px; 
-            font-size: 16px; 
-            margin: 10px;
+        body {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #terminal {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #output {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #001100;
+            border-bottom: 1px solid #0f0;
+        }
+        #input-area {
+            padding: 10px;
+            background: #000;
+            border-top: 1px solid #0f0;
+        }
+        #command-input {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            width: 100%;
+            outline: none;
+        }
+        .prompt {
+            color: #0f0;
+            margin-right: 10px;
+        }
+        .command-line {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: #002200;
+            border-bottom: 1px solid #0f0;
+        }
+        .terminal-button {
+            background: #003300;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 8px 16px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .terminal-button:hover {
+            background: #005500;
+        }
+        .terminal-button:active {
+            background: #007700;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #0f0;
+            background: #002200;
+        }
+        .error {
+            color: #f00;
+            border-left-color: #f00;
+            background: #220000;
+        }
+        .success {
+            color: #0f0;
+            border-left-color: #0f0;
+        }
+        .session-info {
+            color: #0ff;
+            background: #002233;
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 2px solid #0ff;
         }
     </style>
 </head>
 <body>
-    <h1>Crypto Test Suite Runner</h1>
-    <button onclick="runTests()">Run All Tests</button>
-    <div id="output">Click "Run All Tests" to start...</div>
+    <div id="terminal">
+        <div class="button-row">
+            <button class="terminal-button" onclick="runTests()">RUN TESTS</button>
+            <button class="terminal-button" onclick="initSessions()">INIT SESSIONS</button>
+            <button class="terminal-button" onclick="createSession()">NEW SESSION</button>
+            <button class="terminal-button" onclick="sendMessage()">SEND MSG</button>
+            <button class="terminal-button" onclick="receiveMessage()">RECV MSG</button>
+            <button class="terminal-button" onclick="clearTerminal()">CLEAR</button>
+        </div>
+        
+        <div id="output">
+            <div class="message success">CRYPTO TERMINAL READY</div>
+            <div class="message">> Initializing WASM module...</div>
+        </div>
+        
+        <div id="input-area">
+            <div class="command-line">
+                <span class="prompt">crypto@terminal:~$</span>
+                <input type="text" id="command-input" placeholder="Type command or use buttons above..." autofocus>
+            </div>
+        </div>
+    </div>
+
     <script src="crypto_wasm.js"></script>
     
     <script>
         const outputDiv = document.getElementById('output');
+        const commandInput = document.getElementById('command-input');
         
+        let currentSessionIdx = -1;
+        let pendingMessages = [];
+
         Module = {
             onRuntimeInitialized: function() {
-                console.log('WASM module loaded successfully!');
+                addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
+                addMessage('Type "help" for available commands', 'success');
             },
             print: function(text) {
-                //printf
-                outputDiv.textContent += text;
-                outputDiv.scrollTop = outputDiv.scrollHeight;
+                addMessage(text, 'message');
             },
             printErr: function(text) {
-                //stderr 
-                outputDiv.textContent += 'ERROR: ' + text;
-                outputDiv.scrollTop = outputDiv.scrollHeight;
+                addMessage(text, 'error');
             }
         };
 
+        function addMessage(text, type = 'message') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = text;
+            outputDiv.appendChild(messageDiv);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        function clearTerminal() {
+            outputDiv.innerHTML = '';
+            addMessage('TERMINAL CLEARED', 'success');
+        }
+
         function runTests() {
-            outputDiv.textContent = 'Running tests...\n';
-            
-            Module._main_tests();
+            addMessage('EXECUTING CRYPTO TEST SUITE...', 'success');
+            Module._wasm_run_all_tests();
         }
-        function send_message() {
 
+        function initSessions() {
+            const result = Module._wasm_init_sessions();
+            if (result === 0) {
+                addMessage('SESSION MANAGER INITIALIZED', 'success');
+            } else {
+                addMessage('FAILED TO INITIALIZE SESSIONS', 'error');
+            }
         }
-        function recieve_message() {
-            
-        }
-        function make_new_session() {
 
+        function createSession() {
+            // Create fake shared secret and identity
+            const sharedSecret = new Uint8Array(32);
+            const remoteIdentity = new Uint8Array(32);
+            for(let i = 0; i < 32; i++) {
+                sharedSecret[i] = i + 1;
+                remoteIdentity[i] = i + 33;
+            }
+
+            const sharedPtr = allocate(sharedSecret);
+            const identityPtr = allocate(remoteIdentity);
+            
+            currentSessionIdx = Module._wasm_new_session(sharedPtr, identityPtr);
+            
+            Module._free(sharedPtr);
+            Module._free(identityPtr);
+            
+            if (currentSessionIdx >= 0) {
+                addMessage(`SESSION CREATED [ID: ${currentSessionIdx}]`, 'success');
+                addMessage(`Session index ${currentSessionIdx} is now active`, 'session-info');
+            } else {
+                addMessage('FAILED TO CREATE SESSION', 'error');
+            }
         }
+
+        function sendMessage() {
+            if (currentSessionIdx < 0) {
+                addMessage('ERROR: NO ACTIVE SESSION', 'error');
+                return;
+            }
+
+            const message = prompt('Enter message to send:');
+            if (!message) return;
+
+            const plaintext = new TextEncoder().encode(message);
+            const ciphertext = new Uint8Array(plaintext.length);
+
+            const plainPtr = allocate(plaintext);
+            const cipherPtr = allocate(ciphertext);
+
+            const result = Module._wasm_send_message(currentSessionIdx, plainPtr, plaintext.length, cipherPtr);
+            
+            if (result === 0) {
+                const encrypted = fromCArray(cipherPtr, plaintext.length);
+                pendingMessages.push({ciphertext: encrypted, original: message});
+                addMessage(`MESSAGE SENT: "${message}"`, 'success');
+                addMessage(`Ciphertext: ${Array.from(encrypted).map(b => b.toString(16).padStart(2, '0')).join('')}`, 'session-info');
+            } else {
+                addMessage('SEND FAILED', 'error');
+            }
+
+            Module._free(plainPtr);
+            Module._free(cipherPtr);
+        }
+
+        function receiveMessage() {
+            if (currentSessionIdx < 0) {
+                addMessage('ERROR: NO ACTIVE SESSION', 'error');
+                return;
+            }
+
+            if (pendingMessages.length === 0) {
+                addMessage('NO PENDING MESSAGES', 'error');
+                return;
+            }
+
+            const messageData = pendingMessages.shift();
+            const plaintext = new Uint8Array(messageData.ciphertext.length);
+
+            const cipherPtr = allocate(messageData.ciphertext);
+            const plainPtr = allocate(plaintext);
+
+            const result = Module._wasm_receive_message(currentSessionIdx, cipherPtr, messageData.ciphertext.length, plainPtr, null);
+            
+            if (result === 0) {
+                const decoded = new TextDecoder().decode(plaintext);
+                addMessage(`MESSAGE RECEIVED: "${decoded}"`, 'success');
+                if (decoded !== messageData.original) {
+                    addMessage('WARNING: Decrypted message does not match original!', 'error');
+                }
+            } else {
+                addMessage('RECEIVE FAILED', 'error');
+            }
+
+            Module._free(cipherPtr);
+            Module._free(plainPtr);
+        }
+
+        // Utility functions
+        function allocate(data) {
+            const ptr = Module._malloc(data.length);
+            Module.HEAPU8.set(data, ptr);
+            return ptr;
+        }
+
+        function fromCArray(ptr, length) {
+            return Module.HEAPU8.slice(ptr, ptr + length);
+        }
+
+        // Command input handler
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const command = this.value.trim();
+                this.value = '';
+                
+                addMessage(`crypto@terminal:~$ ${command}`, 'message');
+                
+                switch(command.toLowerCase()) {
+                    case 'help':
+                        addMessage('AVAILABLE COMMANDS:', 'success');
+                        addMessage('  tests    - Run crypto test suite');
+                        addMessage('  init     - Initialize sessions');
+                        addMessage('  new      - Create new session');
+                        addMessage('  send     - Send message');
+                        addMessage('  recv     - Receive message');
+                        addMessage('  clear    - Clear terminal');
+                        addMessage('  help     - Show this help', 'success');
+                        break;
+                    case 'tests':
+                        runTests();
+                        break;
+                    case 'init':
+                        initSessions();
+                        break;
+                    case 'new':
+                        createSession();
+                        break;
+                    case 'send':
+                        sendMessage();
+                        break;
+                    case 'recv':
+                        receiveMessage();
+                        break;
+                    case 'clear':
+                        clearTerminal();
+                        break;
+                    default:
+                        addMessage(`Unknown command: ${command}`, 'error');
+                        addMessage('Type "help" for available commands', 'message');
+                }
+            }
+        });
     </script>
 </body>
 </html>
