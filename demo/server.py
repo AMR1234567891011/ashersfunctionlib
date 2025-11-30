@@ -1,5 +1,5 @@
 #AI generated
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 import ctypes
 import secrets
@@ -54,7 +54,7 @@ pending_messages = []  # Store encrypted messages
 
 @app.route('/')
 def home():
-    return "Signal Protocol Backend (Real C Crypto)"
+    return render_template("index.html")
 
 @app.route('/register/<username>', methods=['POST'])
 def register_user(username):
