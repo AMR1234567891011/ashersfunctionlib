@@ -361,7 +361,11 @@
                 addMessage('FAILED TO INITIALIZE WASM SESSIONS', 'error');
             }
         }
-
+        async function debugBackend() {
+            const result = await backendRequest('/debug');
+            addMessage('DEBUG INFO:', 'session-info');
+            addMessage(JSON.stringify(result, null, 2), 'session-info');
+        }
         function createSession() {
             // Create fake shared secret and identity
             const sharedSecret = new Uint8Array(32);
@@ -417,6 +421,9 @@
                         addMessage('  theme    - Toggle theme');
                         addMessage('  clear    - Clear terminal');
                         addMessage('  help     - Show this help', 'success');
+                        break;
+                    case 'debug':
+                        debugBackend();
                         break;
                     case 'tests':
                         runTests();
