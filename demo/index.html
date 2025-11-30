@@ -159,10 +159,7 @@
     <div id="terminal">
         <div class="button-row">
             <button class="terminal-button" onclick="runTests()">RUN TESTS</button>
-            <button class="terminal-button" onclick="registerUser()">REGISTER</button>
             <button class="terminal-button" onclick="getUsers()">GET USERS</button>
-            <button class="terminal-button" onclick="startSession()">START SESSION</button>
-            <button class="terminal-button" onclick="sendBackendMessage()">SEND MSG</button>
             <button class="terminal-button" onclick="getMessages()">GET MSGS</button>
             <button class="terminal-button" onclick="toggleTheme()">THEME</button>
             <button class="terminal-button" onclick="clearTerminal()">CLEAR</button>
@@ -193,7 +190,6 @@
         let availableUsers = [];
         let currentSession = null;
 
-        // Theme management
         function toggleTheme() {
             document.body.classList.toggle('blue-theme');
             const isBlue = document.body.classList.contains('blue-theme');
@@ -226,7 +222,6 @@
             addMessage('TERMINAL CLEARED', 'success');
         }
 
-        // Backend API functions
         async function backendRequest(endpoint, options = {}) {
             try {
                 const response = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -243,9 +238,11 @@
             }
         }
 
-        async function registerUser() {
-            const username = prompt('Enter your username:');
-            if (!username) return;
+        async function registerUser(username) {
+            if (!username) {
+                addMessage('Usage: register <username>', 'error');
+                return;
+            }
             
             currentUsername = username;
             const result = await backendRequest(`/register/${username}`, {
@@ -271,15 +268,14 @@
             }
         }
 
-        async function startSession() {
+        async function startSession(targetUser) {
             if (!currentUsername) {
                 addMessage('Please register first', 'error');
                 return;
             }
 
-            const targetUser = prompt('Start session with user:');
             if (!targetUser) {
-                addMessage('Invalid target user', 'error');
+                addMessage('Usage: session <username>', 'error');
                 return;
             }
 
@@ -297,7 +293,6 @@
                 addMessage(`Role: ${result.role}`, 'session-info');
                 currentSession = result;
                 
-                // If we're the initiator, notify the other user to complete their session
                 if (result.role === 'initiator') {
                     addMessage(`Notified ${targetUser} to complete session setup`, 'session-info');
                 }
@@ -306,15 +301,16 @@
             }
         }
 
-        // Add function for responder to complete session
-        async function completeSession() {
+        async function completeSession(targetUser) {
             if (!currentUsername) {
                 addMessage('Please register first', 'error');
                 return;
             }
 
-            const targetUser = prompt('Complete session with user:');
-            if (!targetUser) return;
+            if (!targetUser) {
+                addMessage('Usage: complete <username>', 'error');
+                return;
+            }
 
             const result = await backendRequest('/complete_session', {
                 method: 'POST',
@@ -334,17 +330,16 @@
             }
         }
 
-        async function sendBackendMessage() {
+        async function sendBackendMessage(targetUser, message) {
             if (!currentUsername) {
                 addMessage('Please register first', 'error');
                 return;
             }
 
-            const targetUser = prompt('Enter recipient username:');
-            if (!targetUser) return;
-
-            const message = prompt('Enter message:');
-            if (!message) return;
+            if (!targetUser || !message) {
+                addMessage('Usage: send <username> <message>', 'error');
+                return;
+            }
 
             const result = await backendRequest('/send_message', {
                 method: 'POST',
@@ -381,50 +376,17 @@
             }
         }
 
-        // WASM test functions (keep your existing ones)
         function runTests() {
             addMessage('EXECUTING CRYPTO TEST SUITE...', 'success');
             Module._main_tests();
         }
 
-        function initSessions() {
-            const result = Module._wasm_init_sessions();
-            if (result === 0) {
-                addMessage('WASM SESSION MANAGER INITIALIZED', 'success');
-            } else {
-                addMessage('FAILED TO INITIALIZE WASM SESSIONS', 'error');
-            }
-        }
         async function debugBackend() {
             const result = await backendRequest('/debug');
             addMessage('DEBUG INFO:', 'session-info');
             addMessage(JSON.stringify(result, null, 2), 'session-info');
         }
-        function createSession() {
-            // Create fake shared secret and identity
-            const sharedSecret = new Uint8Array(32);
-            const remoteIdentity = new Uint8Array(32);
-            for(let i = 0; i < 32; i++) {
-                sharedSecret[i] = i + 1;
-                remoteIdentity[i] = i + 33;
-            }
 
-            const sharedPtr = allocate(sharedSecret);
-            const identityPtr = allocate(remoteIdentity);
-            
-            const sessionIdx = Module._wasm_new_session(sharedPtr, identityPtr);
-            
-            Module._free(sharedPtr);
-            Module._free(identityPtr);
-            
-            if (sessionIdx >= 0) {
-                addMessage(`WASM SESSION CREATED [ID: ${sessionIdx}]`, 'success');
-            } else {
-                addMessage('FAILED TO CREATE WASM SESSION', 'error');
-            }
-        }
-
-        // Utility functions
         function allocate(data) {
             const ptr = Module._malloc(data.length);
             Module.HEAPU8.set(data, ptr);
@@ -435,7 +397,6 @@
             return Module.HEAPU8.slice(ptr, ptr + length);
         }
 
-        // Command input handler
         commandInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 const command = this.value.trim();
@@ -443,41 +404,45 @@
                 
                 addMessage(`crypto@terminal:~$ ${command}`, 'message');
                 
-                switch(command.toLowerCase()) {
+                const parts = command.split(' ');
+                const cmd = parts[0].toLowerCase();
+                const args = parts.slice(1);
+                
+                switch(cmd) {
                     case 'help':
                         addMessage('AVAILABLE COMMANDS:', 'success');
-                        addMessage('  tests    - Run crypto test suite');
-                        addMessage('  register - Register user');
-                        addMessage('  users    - Get available users');
-                        addMessage('  complete - Accept connection with user')
-                        addMessage('  session  - Start session with user');
-                        addMessage('  send     - Send message');
-                        addMessage('  getmsgs  - Get messages');
-                        addMessage('  theme    - Toggle theme');
-                        addMessage('  clear    - Clear terminal');
-                        addMessage('  help     - Show this help', 'success');
-                        break;
-                    // Add to the command switch case
-                    case 'complete':
-                        completeSession();
-                        break;
-                    case 'debug':
-                        debugBackend();
-                        break;
-                    case 'tests':
-                        runTests();
+                        addMessage('  register <username>          - Register user', 'success');
+                        addMessage('  users                        - Get available users', 'success');
+                        addMessage('  session <username>           - Start session with user', 'success');
+                        addMessage('  complete <username>          - Complete session with user', 'success');
+                        addMessage('  send <username> <message>    - Send message to user', 'success');
+                        addMessage('  getmsgs                      - Get messages', 'success');
+                        addMessage('  theme                        - Toggle theme', 'success');
+                        addMessage('  clear                        - Clear terminal', 'success');
+                        addMessage('  tests                        - Run crypto tests', 'success');
+                        addMessage('  debug                        - Debug info', 'success');
+                        addMessage('  help                         - Show this help', 'success');
                         break;
                     case 'register':
-                        registerUser();
+                        registerUser(args[0]);
                         break;
                     case 'users':
                         getUsers();
                         break;
                     case 'session':
-                        startSession();
+                        startSession(args[0]);
+                        break;
+                    case 'complete':
+                        completeSession(args[0]);
                         break;
                     case 'send':
-                        sendBackendMessage();
+                        if (args.length >= 2) {
+                            const targetUser = args[0];
+                            const message = args.slice(1).join(' ');
+                            sendBackendMessage(targetUser, message);
+                        } else {
+                            addMessage('Usage: send <username> <message>', 'error');
+                        }
                         break;
                     case 'getmsgs':
                         getMessages();
@@ -488,6 +453,12 @@
                     case 'clear':
                         clearTerminal();
                         break;
+                    case 'tests':
+                        runTests();
+                        break;
+                    case 'debug':
+                        debugBackend();
+                        break;
                     default:
                         addMessage(`Unknown command: ${command}`, 'error');
                         addMessage('Type "help" for available commands', 'message');
@@ -495,7 +466,6 @@
             }
         });
 
-        // Initialize
         addMessage('Use buttons above or type commands below', 'message');
         addMessage('Backend URL: ' + BACKEND_URL, 'session-info');
     </script>
