@@ -205,7 +205,9 @@
             const isBlue = document.body.classList.contains('blue-theme');
             addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
         }
-        
+        let wasmRead = false;
+        let allocate;
+        let fromCArray;
         Module = {
             onRuntimeInitialized: function() {
                 addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
