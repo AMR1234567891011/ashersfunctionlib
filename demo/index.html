@@ -184,7 +184,31 @@
             </div>
         </div>
     </div>
-
+    <script>
+        let wasmReady = false;
+        Module = {
+            onRuntimeInitialized: function() {
+                addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
+                addMessage('Type "help" for available commands', 'success');
+                wasmReady = true;
+                if (!Module.HEAPU8) {
+                    addMessage('ERROR: HEAPU8 not available in Module', 'error');
+                    return;
+                }
+                
+                if (!Module._malloc) {
+                    addMessage('ERROR: _malloc not exported from WASM', 'error');
+                    return;
+                }
+            },
+            print: function(text) {
+                addMessage(text, 'message');
+            },
+            printErr: function(text) {
+                addMessage(text, 'error');
+            }
+        };
+    </script>
     <script src="/static/crypto_wasm.js"></script>
     
     <script>
@@ -196,24 +220,206 @@
         let availableUsers = [];
         let currentSession = null;
 
+        let localKeys = {};
+        const KEY_SIZE = 32;
+        const base_point = new Uint8Array([9, ...Array(31).fill(0)]);
+        function allocate(data) {
+            const ptr = Module._malloc(data.length);
+            Module.HEAPU8.set(data, ptr);
+            return ptr;
+        }
+
+        function fromCArray(ptr, length) {
+            return Module.HEAPU8.slice(ptr, ptr + length);
+        }
         function toggleTheme() {
             document.body.classList.toggle('blue-theme');
             const isBlue = document.body.classList.contains('blue-theme');
             addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
         }
-
-        Module = {
-            onRuntimeInitialized: function() {
-                addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
-                addMessage('Type "help" for available commands', 'success');
-            },
-            print: function(text) {
-                addMessage(text, 'message');
-            },
-            printErr: function(text) {
-                addMessage(text, 'error');
+        async function registerUser(username) {
+            if (localKeys.identity_private) {
+                addMessage('A user is already active. Clear keys or restart to register a new one.', 'error');
+                return;
             }
-        };
+            currentUsername = username;
+            //gen random priv keys
+            const ik_priv = window.crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+            const spk_priv = window.crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+
+            const ik_pub = new Uint8Array(KEY_SIZE);
+            const spk_pub = new Uint8Array(KEY_SIZE);
+
+            const base_ptr = allocate(base_point);
+            const ik_priv_ptr = allocate(ik_priv);
+            const ik_pub_ptr = allocate(ik_pub);
+            const spk_priv_ptr = allocate(spk_priv);
+            const spk_pub_ptr = allocate(spk_pub);
+
+            //compute public keys
+            Module._scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
+            Module._scalar_mult(spk_pub_ptr, spk_priv_ptr, base_ptr);
+    
+
+            const identity_public = Array.from(fromCArray(ik_pub_ptr, KEY_SIZE));
+            const prekey_public = Array.from(fromCArray(spk_pub_ptr, KEY_SIZE));
+
+
+            localKeys = {
+                identity_private: Array.from(ik_priv), 
+                identity_public: identity_public, 
+                prekey_private: Array.from(spk_priv),
+                prekey_public: prekey_public
+            };
+            const result = await backendRequest(`/register/${username}`, {
+                method: 'POST',
+                body: JSON.stringify({ identity_public, prekey_public })
+            });
+        }
+        async function startSession(targetUser) {
+            if (!currentUsername || !localKeys.identity_private) { 
+                addMessage('Please register and load your keys first.', 'error'); return; 
+            }
+            addMessage(`Starting session with ${targetUser}...`, 'session-info');
+            //get prekey bundle of target
+            const bundle = await backendRequest(`/prekey_bundle/${targetUser}`);
+            if (!bundle || bundle.error) {
+                addMessage(`Failed to fetch ${targetUser}'s keys.`, 'error'); 
+                return;
+            }
+            const responder_ik_pub = new Uint8Array(bundle.identity_public);
+            const responder_spk_pub = new Uint8Array(bundle.signed_prekey_public);
+
+            //get initiators priv key
+            const init_ik_priv = new Uint8Array(localKeys.identity_private);
+            
+            //make one time keys
+            const ephemeral_priv = window.crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+            const ephemeral_pub = new Uint8Array(KEY_SIZE);
+
+            //allocate mem for wasm functions
+            const base_ptr = new Uint8Array(base_point);
+            const ephemeral_priv_ptr = allocate(ephemeral_priv);
+            const ephemeral_pub_ptr = allocate(ephemeral_pub);
+
+            const shared_secret = new Uint8Array(KEY_SIZE);
+    
+            const ik_priv_ptr = allocate(init_ik_priv);
+            const ik_pub_resp_ptr = allocate(responder_ik_pub);
+            const spk_pub_resp_ptr = allocate(responder_spk_pub);
+            const shared_secret_ptr = allocate(shared_secret);
+
+            // The C function computes the SS based on 4 Diffie-Hellman calculations.
+            Module._x3dh_woS(
+                shared_secret_ptr,          // Output: Shared Secret
+                ik_priv_ptr,                // Input: Initiator's IK Private
+                ik_pub_resp_ptr,            // Input: Responder's IK Public
+                ephemeral_priv_ptr,         // Input: Initiator's EK Private
+                spk_pub_resp_ptr            // Input: Responder's SPK Public
+            );
+            //initialize double ratchet with new SS
+            const session_idx = Module._wasm_new_session(
+                shared_secret_ptr,
+                ik_pub_resp_ptr, 
+            );
+            if (session_idx >= 0) {
+                currentSession = { 
+                    target: targetUser, 
+                    index: session_idx,
+                    role: 'initiator'
+                };
+                addMessage(`Session initialized in WASM memory. Index: ${session_idx}`, 'success');
+
+                const delivery_result = await backendRequest('/start_session', { 
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        from: currentUsername, 
+                        to: targetUser, 
+                        ephemeral_public: spk_pub_resp_ptr, 
+                        message_type: 'SESSION_INIT'
+                    })
+                });
+                
+                if (delivery_result && !delivery_result.error) {
+                    addMessage('Ephemeral key queued for delivery to responder. Awaiting response...', 'success');
+                } else {
+                    addMessage('Failed to queue EK for delivery.', 'error');
+                }
+            }
+            Module._free(ik_priv_ptr);
+            Module._free(ik_pub_resp_ptr);
+            Module._free(ephemeral_priv_ptr);
+            Module._free(ephemeral_pub_ptr);
+            Module._free(spk_pub_resp_ptr)
+            Module._free(shared_secret_ptr);
+
+        }
+        async function completeSession(initiatorUser) {
+            if (!currentUsername || !localKeys.identity_private) { 
+                addMessage('Please register and load your keys first.', 'error'); return; 
+            }
+            
+            addMessage(`Completing session initiated by ${initiatorUser}...`, 'session-info');
+            //get initiators public ephemral key
+            const delivery_bundle = await backendRequest(`/fetch_ephemeral/${currentUsername}/${initiatorUser}`);
+            
+            if (!delivery_bundle || delivery_bundle.message_type !== 'SESSION_INIT') {
+                addMessage(`No pending session initiation found from ${initiatorUser}.`, 'error'); return;
+            }
+            
+            //get initiators prekey bundle
+            const bundle = await backendRequest(`/prekey_bundle/${initiatorUser}`);
+
+            if (!bundle || bundle.error) {
+                addMessage(`Failed to fetch ${initiatorUser}'s static keys.`, 'error'); return;
+            }
+            
+            const initiator_ik_pub = new Uint8Array(bundle.identity_public);
+            const initiator_ek_pub = new Uint8Array(delivery_bundle.ephemeral_public); // From the delivery bundle
+            
+            const ik_priv_resp = new Uint8Array(localKeys.identity_private);
+            const spk_priv_resp = new Uint8Array(localKeys.prekey_private);
+            
+            const shared_secret = new Uint8Array(KEY_SIZE);
+            
+            const ik_pub_init_ptr = allocate(initiator_ik_pub);
+            const ek_pub_init_ptr = allocate(initiator_ek_pub);
+            const ik_priv_resp_ptr = allocate(ik_priv_resp);
+            const spk_priv_resp_ptr = allocate(spk_priv_resp);
+            const shared_secret_ptr = allocate(shared_secret);
+            Module._x3dh_woR(
+            shared_secret_ptr,         // Output: Shared Secret
+            ik_pub_init_ptr,           // Input: Initiator's IK Public
+            ik_priv_resp_ptr,          // Input: Responder's IK Private
+            ek_pub_init_ptr,           // Input: Initiator's EK Public (The one we fetched)
+            spk_priv_resp_ptr          // Input: Responder's SPK Private
+            );
+
+            // Retrieve the computed shared secret
+            const ss_result = Array.from(fromCArray(shared_secret_ptr, KEY_SIZE));
+            addMessage(`X3DH Shared Secret computed successfully.`, 'session-info');
+            const session_idx = Module._wasm_new_session(
+                shared_secret_ptr,
+                ik_pub_init_ptr
+            );
+
+            //stor session index
+            if (session_idx >= 0) {
+                currentSession = { 
+                    target: initiatorUser, 
+                    index: session_idx,
+                    role: 'responder'
+                };
+            } else {
+                addMessage('Session initialization failed in WASM.', 'error');
+            }
+            
+            Module._free(ik_pub_init_ptr);
+            Module._free(ek_pub_init_ptr);
+            Module._free(ik_priv_resp_ptr);
+            Module._free(spk_priv_resp_ptr);
+            Module._free(shared_secret_ptr);
+        }
 
         function addMessage(text, type = 'message') {
             const messageDiv = document.createElement('div');
@@ -244,25 +450,6 @@
             }
         }
 
-        async function registerUser(username) {
-            if (!username) {
-                addMessage('Usage: register <username>', 'error');
-                return;
-            }
-            
-            currentUsername = username;
-            const result = await backendRequest(`/register/${username}`, {
-                method: 'POST'
-            });
-            
-            if (result && !result.error) {
-                addMessage(`REGISTERED as ${username}`, 'success');
-                addMessage(`Identity key: ${result.identity_public?.slice(0, 8).map(b => b.toString(16)).join('')}...` || 'Keys generated', 'session-info');
-            } else {
-                addMessage(`Registration failed: ${result?.error || 'Unknown error'}`, 'error');
-            }
-        }
-
         async function getUsers() {
             const users = await backendRequest('/users');
             if (users && Array.isArray(users)) {
@@ -274,112 +461,128 @@
             }
         }
 
-        async function startSession(targetUser) {
-            if (!currentUsername) {
-                addMessage('Please register first', 'error');
-                return;
-            }
-
-            if (!targetUser) {
-                addMessage('Usage: session <username>', 'error');
-                return;
-            }
-
-            const result = await backendRequest('/start_session', {
-                method: 'POST',
-                body: JSON.stringify({
-                    from: currentUsername,
-                    to: targetUser
-                })
-            });
-
-            if (result && result.status === 'session_established') {
-                addMessage(`SESSION ESTABLISHED with ${targetUser}`, 'success');
-                addMessage(`Session index: ${result.session_index}`, 'session-info');
-                addMessage(`Role: ${result.role}`, 'session-info');
-                currentSession = result;
-                
-                if (result.role === 'initiator') {
-                    addMessage(`Notified ${targetUser} to complete session setup`, 'session-info');
-                }
-            } else {
-                addMessage(`Session failed: ${result?.error || 'Unknown error'}`, 'error');
-            }
-        }
-
-        async function completeSession(targetUser) {
-            if (!currentUsername) {
-                addMessage('Please register first', 'error');
-                return;
-            }
-
-            if (!targetUser) {
-                addMessage('Usage: complete <username>', 'error');
-                return;
-            }
-
-            const result = await backendRequest('/complete_session', {
-                method: 'POST',
-                body: JSON.stringify({
-                    from: currentUsername,
-                    to: targetUser
-                })
-            });
-
-            if (result && result.status === 'session_established') {
-                addMessage(`SESSION COMPLETED with ${targetUser}`, 'success');
-                addMessage(`Session index: ${result.session_index}`, 'session-info');
-                addMessage(`Role: ${result.role}`, 'session-info');
-                currentSession = result;
-            } else {
-                addMessage(`Session completion failed: ${result?.error || 'Unknown error'}`, 'error');
-            }
-        }
-
         async function sendBackendMessage(targetUser, message) {
             if (!currentUsername) {
                 addMessage('Please register first', 'error');
                 return;
             }
-
-            if (!targetUser || !message) {
-                addMessage('Usage: send <username> <message>', 'error');
+            if (!currentSession || currentSession.target !== targetUser) {
+                addMessage(`Error: No active session with ${targetUser}. Please start a session first.`, 'error');
                 return;
             }
 
-            const result = await backendRequest('/send_message', {
-                method: 'POST',
-                body: JSON.stringify({
-                    from: currentUsername,
-                    to: targetUser,
-                    message: message
-                })
-            });
-
-            if (result && result.status === 'sent') {
-                addMessage(`MESSAGE SENT to ${targetUser}: "${message}"`, 'success');
-            } else {
-                addMessage(`Send failed: ${result?.error || 'Unknown error'}`, 'error');
+            const session_idx = currentSession.index;
+            const plaintext_buf = new TextEncoder().encode(message);
+            const plaintext_len = plaintext_buf.length;
+            const ratchet_pub_ptr = Module._malloc(KEY_SIZE);
+            if (plaintext_len === 0 || plaintext_len > MAX_MESSAGE_LEN) {
+                addMessage('Error: Invalid message length.', 'error');
+                return;
             }
+            const plaintext_ptr = allocate(plaintext_buf);
+            const max_ciphertext_len = plaintext_len + 100;
+            const ciphertext_ptr = Module._malloc(max_ciphertext_len);
+
+            const result = Module.wasm_send_message(
+                session_idx,
+                plaintext_ptr,
+                plaintext_len,
+                ciphertext_ptr,
+                ratchet_pub_ptr
+            )
+            let delivery_result = { 'err': 'WASM encypt failed'};
+            if (result === 0) {
+                const actual_len = Module.HEAPU32[wasm_ciphertext_len_ptr / 4]; 
+                const ciphertext = Array.from(fromCArray(ciphertext_ptr, actual_len));
+                const ratchet_pub_key = Array.from(fromCArray(ratchet_pub_ptr, KEY_SIZE));
+                delivery_result = await backendRequest('/send_message', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        from: currentUsername,
+                        to: targetUSer,
+                        ciphertext: ciphertext,
+                        length: actual_len,
+                        ratchet_pub: ratchet_pub_key
+                    })
+                });
+            }
+            Module._free(plaintext_ptr);
+            Module._free(ciphertext_ptr);
+            Module._free(ratchet_pub_ptr);
+            addMessage(`${delivery_result}`);
         }
 
         async function getMessages() {
-            if (!currentUsername) {
-                addMessage('Please register first', 'error');
-                return;
-            }
-
-            const messages = await backendRequest(`/get_messages/${currentUsername}`);
-            if (messages && Array.isArray(messages)) {
-                if (messages.length === 0) {
-                    addMessage('No new messages', 'message');
-                } else {
-                    addMessage(`RECEIVED ${messages.length} MESSAGE(S):`, 'success');
-                    messages.forEach(msg => {
-                        addMessage(`From ${msg.from}: ${msg.message}`, 'session-info');
-                    });
+            if (!currentSession) {
+                    addMessage('No active session. Cannot fetch messages.', 'error');
+                    return;
                 }
-            }
+                
+                const session_idx = currentSession.index;
+                const targetUser = currentSession.target;
+                
+                //get encrypted messages
+                const encrypted_messages = await backendRequest(`/get_messages/${currentUsername}`);
+                
+                if (!encrypted_messages || encrypted_messages.length === 0) {
+                    addMessage('No new messages found.', 'session-info');
+                    return;
+                }
+
+                const decrypted_messages = [];
+                
+                for (const msg of encrypted_messages) {
+                    
+                    if (msg.from !== targetUser) continue;
+                    
+                    const ciphertext_buf = new Uint8Array(msg.ciphertext);
+                    const ciphertext_len = msg.length;
+                    const max_plaintext_len = ciphertext_len; 
+
+                    const ciphertext_ptr = allocate(ciphertext_buf);
+                    const plaintext_ptr = Module._malloc(max_plaintext_len);
+                    const actual_plaintext_len_ptr = Module._malloc(4);
+                    
+                    //public ratchet key
+                    let remote_ratchet_pub_ptr = 0;
+                    if (msg.ratchet_pub_key) {
+                        const ratchet_pub_buf = new Uint8Array(msg.ratchet_pub_key);
+                        remote_ratchet_pub_ptr = allocate(ratchet_pub_buf);
+                    } else {
+                        addMessage('No ratchet public key sent by server.');
+                    }
+
+                    // decrypt text with public ratchet key
+                    const result = Module._wasm_receive_message(
+                        session_idx,
+                        ciphertext_ptr,
+                        ciphertext_len,
+                        plaintext_ptr,
+                        actual_plaintext_len_ptr,
+                        remote_ratchet_pub_ptr
+                    );
+                    
+                    if (result === 0) {
+                        const actual_len = result;
+                        const plaintext_bytes = fromCArray(plaintext_ptr, actual_len);
+                        const plaintext = new TextDecoder().decode(plaintext_bytes);
+                        
+                        decrypted_messages.push({ from: msg.from, message: plaintext });
+                    } else {
+                        addMessage(`Failed to decrypt message from ${msg.from}. Session key mismatch?`, 'error');
+                    }
+
+                    Module._free(ciphertext_ptr);
+                    Module._free(plaintext_ptr);
+                    Module._free(actual_plaintext_len_ptr);
+                    if (remote_ratchet_pub_ptr) {
+                        Module._free(remote_ratchet_pub_ptr);
+                    }
+                }
+                
+                decrypted_messages.forEach(msg => {
+                    addMessage(`[${msg.from}]: ${msg.message}`, 'received');
+                });
         }
 
         function runTests() {
@@ -391,16 +594,6 @@
             const result = await backendRequest('/debug');
             addMessage('DEBUG INFO:', 'session-info');
             addMessage(JSON.stringify(result, null, 2), 'session-info');
-        }
-
-        function allocate(data) {
-            const ptr = Module._malloc(data.length);
-            Module.HEAPU8.set(data, ptr);
-            return ptr;
-        }
-
-        function fromCArray(ptr, length) {
-            return Module.HEAPU8.slice(ptr, ptr + length);
         }
 
         commandInput.addEventListener('keypress', function(e) {
