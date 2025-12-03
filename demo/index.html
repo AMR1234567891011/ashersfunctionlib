@@ -335,8 +335,7 @@
                     body: JSON.stringify({ 
                         from: currentUsername, 
                         to: targetUser, 
-                        // The public part of the key we generated in Step 2:
-                        ephemeral_public: ephemeral_public, 
+                        ephemeral_public: spk_pub_resp_ptr, 
                         message_type: 'SESSION_INIT'
                     })
                 });
