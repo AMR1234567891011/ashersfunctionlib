@@ -260,15 +260,15 @@
             Module._scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
             Module._scalar_mult(spk_pub_ptr, spk_priv_ptr, base_ptr);
     
-            //get public keys from wasm mem
+
             const identity_public = Array.from(fromCArray(ik_pub_ptr, KEY_SIZE));
             const prekey_public = Array.from(fromCArray(spk_pub_ptr, KEY_SIZE));
 
-            //store keys into local keys
+
             localKeys = {
-                identity_private: Array.from(ik_priv), // CRUCIAL: Stored LOCALLY
+                identity_private: Array.from(ik_priv), 
                 identity_public: identity_public, 
-                prekey_private: Array.from(spk_priv),  // CRUCIAL: Stored LOCALLY
+                prekey_private: Array.from(spk_priv),
                 prekey_public: prekey_public
             };
             const result = await backendRequest(`/register/${username}`, {
