@@ -26,7 +26,7 @@ typedef struct {
 
 int session_manager_init(SessionManager *sm);
 int session_manager_create_session(SessionManager *sm, const unsigned char *shared_secret, const unsigned char *remote_identity);
-int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext);
+int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out);
 int session_receive_message(SessionManager *sm, int session_id, const unsigned char *ciphertext, uint32_t len, unsigned char *plaintext, const unsigned char *remote_ratchet_pub);
 
 #endif
