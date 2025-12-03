@@ -186,13 +186,20 @@
     </div>
     <script>
         let wasmReady = false;
-        let allocate;
-        let fromCArray;
         Module = {
             onRuntimeInitialized: function() {
                 addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
                 addMessage('Type "help" for available commands', 'success');
                 wasmReady = true;
+                if (!Module.HEAPU8) {
+                    addMessage('ERROR: HEAPU8 not available in Module', 'error');
+                    return;
+                }
+                
+                if (!Module._malloc) {
+                    addMessage('ERROR: _malloc not exported from WASM', 'error');
+                    return;
+                }
             },
             print: function(text) {
                 addMessage(text, 'message');
