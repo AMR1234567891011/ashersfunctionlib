@@ -205,11 +205,12 @@
             const isBlue = document.body.classList.contains('blue-theme');
             addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
         }
-
+        
         Module = {
             onRuntimeInitialized: function() {
                 addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
                 addMessage('Type "help" for available commands', 'success');
+                wasmReady = true;
             },
             print: function(text) {
                 addMessage(text, 'message');
