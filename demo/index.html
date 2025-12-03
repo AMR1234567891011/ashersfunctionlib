@@ -185,22 +185,13 @@
         </div>
     </div>
     <script>
-                let wasmRead = false;
+        let wasmReady = false;
         let allocate;
         let fromCArray;
         Module = {
             onRuntimeInitialized: function() {
                 addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
                 addMessage('Type "help" for available commands', 'success');
-                function allocate(data) {
-                    const ptr = Module._malloc(data.length);
-                    Module.HEAPU8.set(data, ptr);
-                    return ptr;
-                }
-
-                function fromCArray(ptr, length) {
-                    return Module.HEAPU8.slice(ptr, ptr + length);
-                }
                 wasmReady = true;
             },
             print: function(text) {
@@ -225,7 +216,15 @@
         let localKeys = {};
         const KEY_SIZE = 32;
         const base_point = new Uint8Array([9, ...Array(31).fill(0)]);
+        function allocate(data) {
+            const ptr = Module._malloc(data.length);
+            Module.HEAPU8.set(data, ptr);
+            return ptr;
+        }
 
+        function fromCArray(ptr, length) {
+            return Module.HEAPU8.slice(ptr, ptr + length);
+        }
         function toggleTheme() {
             document.body.classList.toggle('blue-theme');
             const isBlue = document.body.classList.contains('blue-theme');
