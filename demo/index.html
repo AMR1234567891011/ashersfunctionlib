@@ -238,7 +238,7 @@
             const spk_pub_ptr = allocate(spk_pub);
 
             //compute public keys
-            Module.scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
+            Module._scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
             Module._scalar_mult(spk_pub_ptr, spk_priv_ptr, base_ptr);
     
             //get public keys from wasm mem
@@ -454,7 +454,7 @@
             }
 
             const session_idx = currentSession.index;
-            const plaintext_buf = new TextEncoder.encode(message);
+            const plaintext_buf = new TextEncoder().encode(message);
             const plaintext_len = plaintext_buf.length;
             const ratchet_pub_ptr = Module._malloc(KEY_SIZE);
             if (plaintext_len === 0 || plaintext_len > MAX_MESSAGE_LEN) {
