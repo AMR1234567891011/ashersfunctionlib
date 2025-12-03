@@ -83,6 +83,7 @@ def start_session():
 
 @app.route('/fetch_ephemeral/<responder_user>/<initiator_user>')
 def fetch_ephemeral(responder_user, initiator_user):
+    print(users)
     if responder_user not in users or initiator_user not in users:
         return jsonify({'error': 'User not found'}), 404
 
