@@ -210,6 +210,15 @@
             onRuntimeInitialized: function() {
                 addMessage('WASM MODULE LOADED SUCCESSFULLY', 'success');
                 addMessage('Type "help" for available commands', 'success');
+                function allocate(data) {
+                    const ptr = Module._malloc(data.length);
+                    Module.HEAPU8.set(data, ptr);
+                    return ptr;
+                }
+
+                function fromCArray(ptr, length) {
+                    return Module.HEAPU8.slice(ptr, ptr + length);
+                }
                 wasmReady = true;
             },
             print: function(text) {
@@ -577,16 +586,6 @@
             const result = await backendRequest('/debug');
             addMessage('DEBUG INFO:', 'session-info');
             addMessage(JSON.stringify(result, null, 2), 'session-info');
-        }
-
-        function allocate(data) {
-            const ptr = Module._malloc(data.length);
-            Module.HEAPU8.set(data, ptr);
-            return ptr;
-        }
-
-        function fromCArray(ptr, length) {
-            return Module.HEAPU8.slice(ptr, ptr + length);
         }
 
         commandInput.addEventListener('keypress', function(e) {
