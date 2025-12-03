@@ -257,8 +257,8 @@
             const spk_pub_ptr = allocate(spk_pub);
 
             //compute public keys
-            Module.scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
-            Module.scalar_mult(spk_pub_ptr, spk_priv_ptr, base_ptr);
+            Module._scalar_mult(ik_pub_ptr, ik_priv_ptr, base_ptr);
+            Module._scalar_mult(spk_pub_ptr, spk_priv_ptr, base_ptr);
     
             //get public keys from wasm mem
             const identity_public = Array.from(fromCArray(ik_pub_ptr, KEY_SIZE));
