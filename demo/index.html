@@ -184,28 +184,8 @@
             </div>
         </div>
     </div>
-
-    <script src="/static/crypto_wasm.js"></script>
-    
     <script>
-        const outputDiv = document.getElementById('output');
-        const commandInput = document.getElementById('command-input');
-        const BACKEND_URL = 'http://localhost:8000';
-        
-        let currentUsername = '';
-        let availableUsers = [];
-        let currentSession = null;
-
-        let localKeys = {};
-        const KEY_SIZE = 32;
-        const base_point = new Uint8Array([9, ...Array(31).fill(0)]);
-
-        function toggleTheme() {
-            document.body.classList.toggle('blue-theme');
-            const isBlue = document.body.classList.contains('blue-theme');
-            addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
-        }
-        let wasmRead = false;
+                let wasmRead = false;
         let allocate;
         let fromCArray;
         Module = {
@@ -230,6 +210,27 @@
                 addMessage(text, 'error');
             }
         };
+    </script>
+    <script src="/static/crypto_wasm.js"></script>
+    
+    <script>
+        const outputDiv = document.getElementById('output');
+        const commandInput = document.getElementById('command-input');
+        const BACKEND_URL = 'http://localhost:8000';
+        
+        let currentUsername = '';
+        let availableUsers = [];
+        let currentSession = null;
+
+        let localKeys = {};
+        const KEY_SIZE = 32;
+        const base_point = new Uint8Array([9, ...Array(31).fill(0)]);
+
+        function toggleTheme() {
+            document.body.classList.toggle('blue-theme');
+            const isBlue = document.body.classList.contains('blue-theme');
+            addMessage(`Theme changed to ${isBlue ? 'BLUE' : 'GREEN'}`, 'success');
+        }
         async function registerUser(username) {
             if (localKeys.identity_private) {
                 addMessage('A user is already active. Clear keys or restart to register a new one.', 'error');
