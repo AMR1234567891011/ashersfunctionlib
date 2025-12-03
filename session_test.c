@@ -32,9 +32,9 @@ void session_demo_test() {
     const char *test_msg = "Test message";
     unsigned char ciphertext[256];
     unsigned char decrypted[256];
-    
+    unsigned char ratchet_key_out[256];
     // Alice encrypts
-    session_send_message(&sm, alice_session, (unsigned char*)test_msg, strlen(test_msg), ciphertext);
+    session_send_message(&sm, alice_session, (unsigned char*)test_msg, strlen(test_msg), ciphertext, ratchet_key_out);
     printf("Original: '%s'\n", test_msg);
     printf("Ciphertext: ");
     for(int i = 0; i < strlen(test_msg); i++) printf("%02x", ciphertext[i]);
