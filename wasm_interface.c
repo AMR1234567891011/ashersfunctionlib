@@ -18,8 +18,8 @@ int wasm_new_session(const unsigned char *shared_secret, const unsigned char *re
 }
 
 EMSCRIPTEN_KEEPALIVE
-int wasm_send_message(int session_idx, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext) {
-    return session_send_message(&global_sm, session_idx, plaintext, len, ciphertext);
+int wasm_send_message(int session_idx, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {
+    return session_send_message(&global_sm, session_idx, plaintext, len, ciphertext, new_ratchet_pub_out);
 }
 
 EMSCRIPTEN_KEEPALIVE

@@ -106,7 +106,7 @@ void session_perform_ratchet(Session *session, const unsigned char *new_remote_p
     session->message_count = 0;
 }
 
-int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext) {
+int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {
     if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
     if(len > MAX_MESSAGE_LEN) return -1;
     Session *session = &sm->sessions[session_id];
@@ -114,8 +114,12 @@ int session_send_message(SessionManager *sm, int session_id, const unsigned char
     session_peek_message_key(session, message_key);
     simple_crypt(ciphertext, plaintext, len, message_key);
     session_advance_chain(session);
+
+    memcpy(new_ratchet_pub_out, session->ratchet_pub, 32);
+    randombytes(session->ratchet_priv, 32);
+    scalar_mult(session->ratchet_pub, session->ratchet_priv, _9);
     
-    return 0;
+    return len;
 }
 
 int session_receive_message(SessionManager *sm, int session_id, const unsigned char *ciphertext, uint32_t len, unsigned char *plaintext, const unsigned char *remote_ratchet_pub) {
