@@ -87,13 +87,9 @@ def fetch_ephemeral(responder_user, initiator_user):
     session_key_index = f"KEY_BUNDLE_{initiator_user}_{responder_user}" 
     
     if session_key_index not in users[responder_user]:
-        print("HOLY FUCKING SHIT")
         return jsonify({'error': 'No pending session initiation found from this user'}), 404
     
-    bundle  = users[responder_user][session_key_index]
-    # # bundle = users[responder_user].pop(session_key_index) 
-    # bundle = bundle.pop(session_key_index)
-    print(bundle)
+    bundle = users[responder_user].pop(session_key_index) 
     return jsonify({
         'status': 'session_bundle_retrieved',
         'initiator_ik_public': bundle['ik_pub'],

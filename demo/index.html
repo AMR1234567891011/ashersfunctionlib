@@ -222,6 +222,7 @@
 
         let localKeys = {};
         const KEY_SIZE = 32;
+        const MAX_MESSAGE_LEN = 256;
         const base_point = new Uint8Array([9, ...Array(31).fill(0)]);
         function allocate(data) {
             const ptr = Module._malloc(data.length);
@@ -483,7 +484,7 @@
             const max_ciphertext_len = plaintext_len + 100;
             const ciphertext_ptr = Module._malloc(max_ciphertext_len);
 
-            const result = Module.wasm_send_message(
+            const result = Module._wasm_send_message(
                 session_idx,
                 plaintext_ptr,
                 plaintext_len,
@@ -491,20 +492,22 @@
                 ratchet_pub_ptr
             )
             let delivery_result = { 'err': 'WASM encypt failed'};
-            if (result === 0) {
-                const actual_len = Module.HEAPU32[wasm_ciphertext_len_ptr / 4]; 
-                const ciphertext = Array.from(fromCArray(ciphertext_ptr, actual_len));
+            if (result >= 0) {
+                const ciphertext = Array.from(fromCArray(ciphertext_ptr, max_ciphertext_len));
                 const ratchet_pub_key = Array.from(fromCArray(ratchet_pub_ptr, KEY_SIZE));
                 delivery_result = await backendRequest('/send_message', {
                     method: 'POST',
                     body: JSON.stringify({
                         from: currentUsername,
-                        to: targetUSer,
+                        to: targetUser,
                         ciphertext: ciphertext,
-                        length: actual_len,
+                        length: ciphertext.length,
                         ratchet_pub: ratchet_pub_key
                     })
                 });
+            } else {
+                console.log('Wasm encrypt failed.');
+                console.log(result);
             }
             Module._free(plaintext_ptr);
             Module._free(ciphertext_ptr);
@@ -558,15 +561,12 @@
                         ciphertext_ptr,
                         ciphertext_len,
                         plaintext_ptr,
-                        actual_plaintext_len_ptr,
                         remote_ratchet_pub_ptr
                     );
                     
                     if (result === 0) {
-                        const actual_len = result;
-                        const plaintext_bytes = fromCArray(plaintext_ptr, actual_len);
+                        const plaintext_bytes = fromCArray(plaintext_ptr, ciphertext_len);
                         const plaintext = new TextDecoder().decode(plaintext_bytes);
-                        
                         decrypted_messages.push({ from: msg.from, message: plaintext });
                     } else {
                         addMessage(`Failed to decrypt message from ${msg.from}. Session key mismatch?`, 'error');
@@ -594,6 +594,18 @@
             const result = await backendRequest('/debug');
             addMessage('DEBUG INFO:', 'session-info');
             addMessage(JSON.stringify(result, null, 2), 'session-info');
+        }
+        async function testAlice() {
+            registerUser("alice");
+            await sleep(5000);
+            startSession("bob");
+            sendBackendMessage("bob", "testing testing 123 !?/");
+        }
+        async function testBob() {
+            registerUser("bob");
+            await sleep(5000);
+            completeSession("alice");
+            getMessages();
         }
 
         commandInput.addEventListener('keypress', function(e) {
