@@ -46,7 +46,6 @@ def register_user(username):
         'ik_pub': ik_pub,
         'spk_pub': spk_pub
     }
-    
     return jsonify({
         'status': 'registered',
         'identity_public': ik_pub,
@@ -59,12 +58,11 @@ def start_session():
     from_user = data.get('from') #init
     to_user = data.get('to')
     eph_pub = data.get('ephemeral_public') 
-    
     if from_user not in users or to_user not in users:
         return jsonify({'error': 'User not found'}), 404
     
-    if not eph_pub or len(eph_pub) != KEY_SIZE:
-        return jsonify({'error': 'Invalid Ephemeral Public Key provided'}), 400
+    # if not eph_pub or len(eph_pub) != KEY_SIZE:
+    #     return jsonify({'error': 'Invalid Ephemeral Public Key provided'}), 400
     
     session_key_idx = f"KEY_BUNDLE_{from_user}_{to_user}"
     
@@ -72,8 +70,8 @@ def start_session():
         users[to_user] = {'ik_pub': [], 'spk_pub': []} 
         
     users[to_user][session_key_idx] = {
-        'ephemeral_public': eph_pub,
-        'initiator_id_public': users[from_user]['ik_pub']
+        'eph_pub': eph_pub,
+        'ik_pub': users[from_user]['ik_pub']
     }
     
     return jsonify({
@@ -83,21 +81,23 @@ def start_session():
 
 @app.route('/fetch_ephemeral/<responder_user>/<initiator_user>')
 def fetch_ephemeral(responder_user, initiator_user):
-    print(users)
     if responder_user not in users or initiator_user not in users:
         return jsonify({'error': 'User not found'}), 404
 
     session_key_index = f"KEY_BUNDLE_{initiator_user}_{responder_user}" 
     
     if session_key_index not in users[responder_user]:
+        print("HOLY FUCKING SHIT")
         return jsonify({'error': 'No pending session initiation found from this user'}), 404
     
-    bundle = users[responder_user].pop(session_key_index) 
-    
+    bundle  = users[responder_user][session_key_index]
+    # # bundle = users[responder_user].pop(session_key_index) 
+    # bundle = bundle.pop(session_key_index)
+    print(bundle)
     return jsonify({
         'status': 'session_bundle_retrieved',
         'initiator_ik_public': bundle['ik_pub'],
-        'ephemeral_public': bundle['spk_pub'],
+        'ephemeral_public': bundle['eph_pub'],
         'message_type': 'SESSION_INIT'
     })
 

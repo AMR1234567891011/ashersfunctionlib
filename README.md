@@ -111,6 +111,12 @@ chmod +x ./demo/compile.sh
 ./demo/compile.sh
 python3 ./demo/server.py
 ```
+### DEMO API FLOW with Alice and Bob
+* Alice gets the webpage which generates identity key and signed pre-key, then alice inputs "register alice" to pass her username and associated keys to backend
+* Bob does the same
+* Alice initiates a session with inputing "session bob" Her frontend first fetches bobs prekey bundle that contains identity key and signed pre key. Then the start_session route is hit which adds the session to bobs session by adding alice's identity_key and an ephemral key used for the handshake. 
+* Bob has no way of getting pending requests right now, but he somehow knows to input "complete alice". This first fetches the ephemral key from this prospective session, then gets alice's prekey bundle. 
+
 # THIS IMPLEMENTATION IS ONLY FOR EDUCATION AND REALLY SUCKS FOR SECUTIRY 
 
 
