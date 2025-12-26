@@ -10,6 +10,8 @@ static void randombytes(unsigned char *out, size_t len) {
 }
 
 // Simple XOR encryption for demo
+// shit is terrible
+//TODO: replace with AES 
 static void simple_crypt(unsigned char *output, const unsigned char *input, uint32_t len, const unsigned char *key) {
     unsigned char stream[MAX_MESSAGE_LEN];
     unsigned char info[1] = {0x00};
@@ -19,20 +21,6 @@ static void simple_crypt(unsigned char *output, const unsigned char *input, uint
         output[i] = input[i] ^ stream[i];
     }
 }
-
-static void session_peek_message_key(Session *session, unsigned char *message_key) {
-    unsigned char info[1] = {0x03};
-    hkdf_expand(32, info, 1, session->chain_key, 32, message_key);
-}
-
-static void session_advance_chain(Session *session) {
-    unsigned char new_chain[32];
-    unsigned char info_chain[1] = {0x04};
-    hkdf_expand(32, info_chain, 1, session->chain_key, 32, new_chain);
-    memcpy(session->chain_key, new_chain, 32);
-    session->message_count++;
-}
-
 int session_manager_init(SessionManager *sm) {
     sm->session_count = 0;
     for(int i = 0; i < MAX_SESSIONS; i++) {
@@ -40,7 +28,14 @@ int session_manager_init(SessionManager *sm) {
     }
     return 0;
 }
-
+int session_manager_find_session(SessionManager *sm, const unsigned char *remote_identity) {
+    for(int i = 0; i < MAX_SESSIONS; i++) {
+        if(sm->sessions[i].active && memcmp(sm->sessions[i].remote_identity, remote_identity, 32) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
 int session_manager_create_session(SessionManager *sm, const unsigned char *shared_secret, const unsigned char *remote_identity) {
     if(sm->session_count >= MAX_SESSIONS) return -1;
     int slot = -1;
@@ -70,15 +65,16 @@ int session_manager_create_session(SessionManager *sm, const unsigned char *shar
     return slot;
 }
 
-int session_manager_find_session(SessionManager *sm, const unsigned char *remote_identity) {
-    for(int i = 0; i < MAX_SESSIONS; i++) {
-        if(sm->sessions[i].active && memcmp(sm->sessions[i].remote_identity, remote_identity, 32) == 0) {
-            return i;
-        }
-    }
-    return -1;
+//TODO: replace
+static void session_advance_chain(Session *session) {
+    unsigned char new_chain[32];
+    unsigned char info_chain[1] = {0x04};
+    hkdf_expand(32, info_chain, 1, session->chain_key, 32, new_chain);
+    memcpy(session->chain_key, new_chain, 32);
+    session->message_count++;
 }
 
+//TODO: replace
 void session_perform_ratchet(Session *session, const unsigned char *new_remote_pub) {
     memcpy(session->remote_pub, new_remote_pub, 32);
     
@@ -105,7 +101,7 @@ void session_perform_ratchet(Session *session, const unsigned char *new_remote_p
     scalar_mult(session->ratchet_pub, session->ratchet_priv, _9);
     session->message_count = 0;
 }
-
+//TODO: replace
 int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {
     if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
     if(len > MAX_MESSAGE_LEN) return -1;
@@ -121,7 +117,7 @@ int session_send_message(SessionManager *sm, int session_id, const unsigned char
     
     return len;
 }
-
+//TODO: replace
 int session_receive_message(SessionManager *sm, int session_id, const unsigned char *ciphertext, uint32_t len, unsigned char *plaintext, const unsigned char *remote_ratchet_pub) {
     if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
     if(len > MAX_MESSAGE_LEN) return -1;

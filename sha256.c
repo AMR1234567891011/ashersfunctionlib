@@ -158,6 +158,10 @@ void hkdf_extract(uint8_t *IKM, uint32_t IKM_length, uint8_t *out){
     hmac_sha256(IKM, HKDF_SALT, HKDF_SALT_LEN, IKM_length, out);
     return;
 }
+void hkdf_extract_salt(uint8_t *IKM, uint32_t IKM_length, uint8_t *salt, uint32_t salt_length, uint8_t *out) {
+    hmac_sha256(IKM, salt, IKM_length, salt_length, out);
+    return;
+}
 //https://datatracker.ietf.org/doc/html/rfc5869
 void hkdf_expand(uint32_t L, uint8_t *info, uint32_t info_length, uint8_t *PRK, uint32_t PRK_length, uint8_t *out){
     //L is the desired length of keying material
