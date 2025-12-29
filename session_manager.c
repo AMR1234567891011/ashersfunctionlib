@@ -3,7 +3,7 @@
 #include <string.h>
 
 // Simple random bytes function for demo
-static void randombytes(unsigned char *out, size_t len) {
+void randombytes(unsigned char *out, size_t len) {
     for(size_t i = 0; i < len; i++) {
         out[i] = (i * 17 + 53) % 256;
     }
@@ -48,73 +48,16 @@ int session_manager_create_session(SessionManager *sm, const unsigned char *shar
     if(slot == -1) return -1;
     
     Session *session = &sm->sessions[slot];
-    unsigned char salt[32] = {0};
-    unsigned char info[13] = "SignalRatchet";
-    
-    hkdf_extract((uint8_t*)shared_secret, 32, session->root_key);
-    hkdf_expand(32, info, 13, session->root_key, 32, session->chain_key);
-    
-    randombytes(session->ratchet_priv, 32);
-    scalar_mult(session->ratchet_pub, session->ratchet_priv, _9);
-    
-    memcpy(session->remote_identity, remote_identity, 32);
-    session->message_count = 0;
-    session->active = 1;
-    sm->session_count++;
-    
-    return slot;
+
 }
 
-//TODO: replace
-static void session_advance_chain(Session *session) {
-    unsigned char new_chain[32];
-    unsigned char info_chain[1] = {0x04};
-    hkdf_expand(32, info_chain, 1, session->chain_key, 32, new_chain);
-    memcpy(session->chain_key, new_chain, 32);
-    session->message_count++;
-}
 
-//TODO: replace
-void session_perform_ratchet(Session *session, const unsigned char *new_remote_pub) {
-    memcpy(session->remote_pub, new_remote_pub, 32);
-    
-    unsigned char dh_output[32];
-    scalar_mult(dh_output, session->ratchet_priv, new_remote_pub);
-    
-    unsigned char input[64];
-    for(int i = 0; i < 32; i++) {
-        input[i] = session->root_key[i];
-        input[i+32] = dh_output[i];
-    }
-    
-    unsigned char new_root[32], new_chain[32];
-    unsigned char info_root[1] = {0x01};
-    unsigned char info_chain[1] = {0x02};
-    
-    hkdf_expand(32, info_root, 1, input, 64, new_root);
-    hkdf_expand(32, info_chain, 1, input, 64, new_chain);
-    
-    memcpy(session->root_key, new_root, 32);
-    memcpy(session->chain_key, new_chain, 32);
-    
-    randombytes(session->ratchet_priv, 32);
-    scalar_mult(session->ratchet_pub, session->ratchet_priv, _9);
-    session->message_count = 0;
-}
 //TODO: replace
 int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {
     if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
     if(len > MAX_MESSAGE_LEN) return -1;
     Session *session = &sm->sessions[session_id];
-    unsigned char message_key[32];
-    session_peek_message_key(session, message_key);
-    simple_crypt(ciphertext, plaintext, len, message_key);
-    session_advance_chain(session);
 
-    memcpy(new_ratchet_pub_out, session->ratchet_pub, 32);
-    randombytes(session->ratchet_priv, 32);
-    scalar_mult(session->ratchet_pub, session->ratchet_priv, _9);
-    
     return len;
 }
 //TODO: replace
@@ -123,15 +66,6 @@ int session_receive_message(SessionManager *sm, int session_id, const unsigned c
     if(len > MAX_MESSAGE_LEN) return -1;
     
     Session *session = &sm->sessions[session_id];
-    
-    if(remote_ratchet_pub && memcmp(remote_ratchet_pub, session->remote_pub, 32) != 0) {
-        session_perform_ratchet(session, remote_ratchet_pub);
-    }
-    
-    unsigned char message_key[32];
-    session_peek_message_key(session, message_key);
-    simple_crypt(plaintext, ciphertext, len, message_key);
-    session_advance_chain(session);
     
     return 0;
 }

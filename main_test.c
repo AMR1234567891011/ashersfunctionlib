@@ -3,6 +3,7 @@
 #include "X25519.h"
 #include "X3DH.h"
 #include "session_test.h"
+#include "double_ratchet_test.h"
 /* hash test msg
 I was working in the lab late one night When my eyes beheld an eerie sight For my monster, from his slab, began to rise And suddenly, to my surprise (He did the Mash) he did the Monster Mash (The Monster Mash) it was a graveyard smash (He did the Mash) it caught on in a flash (He did the Mash) he did the Monster Mash From my laboratory in the Castle east To the master bedroom, where the vampires feast The ghouls all came from their humble abodes To get a jolt from my electrodes
 */
@@ -180,9 +181,12 @@ void main_tests() {
     printf("\nX3DH TEST\n");
     X3DH_test();
 
-    session_demo_test();
+    //session_demo_test();
+
+    printf("\nDOUBLE RATCHET TEST");
+    double_ratchet_init_test();
 }
 int main(){
-    // main_tests();
+    main_tests();
     return 0;
 }

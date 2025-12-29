@@ -1,7 +1,7 @@
 #ifndef DOUBLE_RATCHET_H
 #define DOUBLE_RATCHET_H
 
-typedef struct {
+typedef struct  {
     unsigned char root_key[32];//shared secret from the X3DH initial exchange
     unsigned char cks[32];//chain sending key
     unsigned char ckr[32];//chain key
@@ -13,20 +13,11 @@ typedef struct {
     //STATIC: maybe remove later
     unsigned char dh_priv[32];
     unsigned char prk[32];
+    unsigned char kdf_out[64];
 } Double_Ratchet;
 
 
-int init_double_ratchet();
-//intialize DH keypair
-int start_double_ratchet();
-//initialize send and recv ratchet steps
-//Takes remote public key and root key from X3DH
-int advance_dh_chain();
-//generate new DH keypair after remote_pub has changed
-//generate send and receive chain keys
-int advance_send_chain();
-//run current send chain key through KDF
-int advance_recv_chain();
-//run current receive chain key through KDF
+void init_double_ratchet(Double_Ratchet *dr, unsigned char *prekey);
+void comp_double_ratchet(Double_Ratchet *dr, unsigned char *dh_public, unsigned char *prekey_private);
 
 #endif
