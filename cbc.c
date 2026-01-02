@@ -42,7 +42,7 @@ void block_xor_i(uint8_t *a, uint8_t * b) {// a = a xor b
     // for(int i = 0; i < 16; i++) a[i] = a[i] ^ b[i];
 }
 void cbc_encrypt(uint8_t *IV, uint8_t* plaintext, uint32_t plaintext_len, uint8_t *key, uint8_t *ciphertext, uint32_t *ciphertext_len) {
-    uint32_t round_keys[68];
+    uint32_t round_keys[60];
     uint8_t zeros[16] = {
         0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00,
@@ -92,7 +92,7 @@ void cbc_tests(){
     printf("\n");
     cbc_encrypt(IV, plaintext, new_plaintext_2, key, ciphertext_2, &ciphertext_len_2);
 }
-int main() {
-    cbc_tests();
-    return 0;
-}
+// int main() {
+//     cbc_tests();
+//     return 0;
+// }

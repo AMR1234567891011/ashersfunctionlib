@@ -192,7 +192,7 @@ void key_expansion(uint8_t *Key, uint32_t *out){//key is 4 words and output is 6
         i++;
     }
     //i = NK here
-    while(i < (4 * (Nr + 3))){
+    while(i < (4 * (Nr + 1))){
         temp = out[i - 1];
         if (i % 8 == 0){
             rot_word(&temp);
@@ -360,9 +360,22 @@ void test_aes256_cipher(void) {//https://csrc.nist.gov/CSRC/media/Projects/Crypt
 
     // encrypt each block
     for (int b = 0; b < 4; b++) { // 16 uint32_t = 64 bytes, 4 blocks of 16 bytes
+        for(int i = 0; i < 16; i++) {
+            printf("%02X", state[b*16 + i]);
+        }
+        printf("\n");
         cipher(&state[b*16], round_keys);
+        for(int i = 0; i < 16; i++) {
+            printf("%02X", state[b*16 + i]);
+        }
+        printf("\n");
         inv_cipher(&state[b*16], round_keys);
+        for(int i = 0; i < 16; i++) {
+            printf("%02X", state[b*16 + i]);
+        }
+        printf("\n - \n");
     }
+
 }
 // int main() {
 //     //test_aes256_key_expansion();
