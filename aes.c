@@ -2,15 +2,6 @@
 #include <stdint.h>
 #define Nr 14
 #define Nk 8
-void print_state(uint8_t *state) {
-    for (int row = 0; row < 4; row++) {
-        for (int col = 0; col < 4; col++) {
-            printf("%02X", state[4*row + col]); // column-major order
-        }
-        printf(" ");
-    }
-    printf("\n\n");
-}
 static const uint32_t round_constants[] = {
     0x01000000, 0x02000000, 0x04000000, 0x08000000,
     0x10000000, 0x20000000, 0x40000000, 0x80000000,
@@ -239,7 +230,6 @@ void sub_word(uint32_t *W){//pass &mem to this!
 }
 
 void cipher(uint8_t *in, uint32_t *w) {
-    print_state(in);
     add_round_key(in, &w[0]);
     for(int r = 1; r < Nr; r++) {
         sub_bytes(in, 16);
@@ -250,7 +240,6 @@ void cipher(uint8_t *in, uint32_t *w) {
     sub_bytes(in, 16);
     shift_rows(in);
     add_round_key(in, &w[4 * Nr]);
-    print_state(in);
 }
 void inv_cipher(uint8_t *in, uint32_t *w) {
     add_round_key(in, &w[Nr * 4]);
@@ -264,7 +253,6 @@ void inv_cipher(uint8_t *in, uint32_t *w) {
     inv_shift_rows(in);
     inv_sub_bytes(in);
     add_round_key(in, &w[0]);
-    print_state(in);
 }
 
 void test_aes256_key_expansion(void)
@@ -374,13 +362,12 @@ void test_aes256_cipher(void) {//https://csrc.nist.gov/CSRC/media/Projects/Crypt
     for (int b = 0; b < 4; b++) { // 16 uint32_t = 64 bytes, 4 blocks of 16 bytes
         cipher(&state[b*16], round_keys);
         inv_cipher(&state[b*16], round_keys);
-        printf("-------------------------\n");
     }
 }
-int main() {
-    //test_aes256_key_expansion();
-    test_aes256_cipher();
-}
+// int main() {
+//     //test_aes256_key_expansion();
+//     test_aes256_cipher();
+// }
 void aes_cbc_256_encrypt(){
     return;
 }

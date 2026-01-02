@@ -21,7 +21,7 @@ void init_double_ratchet(Double_Ratchet *dr, unsigned char *prekey_public) {//in
     scalar_mult(dr->dh_priv, dr->dhr, prekey_public);//do DH on private and remote public *note dhr is used to store intermediate state*
     hkdf_extract_salt(dr->dh_priv, 32, dr->root_key, 32, dr->prk);//generate keying material
     hkdf_expand(64, &info, 1, dr->prk, 32, dr->kdf_out);//write 64 to fill rootkey and sending chain assuming no struct padding
-    for(int i =  0; i <32; i++) {
+    for(int i = 0; i < 32; i++) {
         dr->root_key[i] = dr->kdf_out[i];
         dr->cks[i] = dr->kdf_out[i + 32];
     }
