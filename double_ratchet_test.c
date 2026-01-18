@@ -4,7 +4,7 @@
 #include "double_ratchet.h"
 
 void double_ratchet_init_test() {
-    // 32-byte root key
+        // 32-byte root key
     const unsigned char ROOT_KEY[32] = {
         0xd4, 0xc7, 0xe9, 0xa9, 0xfe, 0x3b, 0x0b, 0x2b,
         0x9c, 0x1f, 0x63, 0x48, 0xd5, 0xe7, 0xa1, 0x0f,
@@ -19,8 +19,16 @@ void double_ratchet_init_test() {
         0xf7, 0xa5, 0xc3, 0xb8, 0xa2, 0xe4, 0xd9, 0xf0,
         0xb6, 0xc5, 0x03, 0xd2, 0xa1, 0xe0, 0xf7, 0xc9
     };
+    const unsigned char ALICE_PRIV[32] = {
+        0x77,0x07,0x6d,0x0a,0x73,0x18,0xa5,0x7d
+       ,0x3c,0x16,0xc1,0x72,0x51,0xb2,0x66,0x45
+       ,0xdf,0x4c,0x2f,0x87,0xeb,0xc0,0x99,0x2a
+       ,0xb1,0x77,0xfb,0xa5,0x1d,0xb9,0x2c,0x2a
+    };
     unsigned char BOB_PUBLIC[32] = {0x00};
+    unsigned char ALICE_PUBLIC[32] = {0x00};
     scalar_mult(BOB_PUBLIC, BOB_PRIV, _9);//get bobs public key
+    scalar_mult(ALICE_PUBLIC, ALICE_PRIV, _9);
     Double_Ratchet alice;
     Double_Ratchet bob;
     for(int i = 0 ; i < 32; i++) {
@@ -28,11 +36,58 @@ void double_ratchet_init_test() {
         bob.root_key[i] = ROOT_KEY[i];
     }
     init_double_ratchet(&alice, BOB_PUBLIC);
+    resp_double_ratchet(&bob, alice.dhs, BOB_PRIV);
+    init_double_ratchet(&bob, ALICE_PUBLIC);
+    resp_double_ratchet(&alice, bob.dhs, ALICE_PRIV);
     printf("\nALICE\n");
     printkey(alice.cks);
-    comp_double_ratchet(&bob, alice.dhs, BOB_PRIV);
+    printkey(alice.ckr);
     printf("BOB\n");
+    printkey(bob.cks);
     printkey(bob.ckr);
-
+}
+void double_ratchet_message_test() {
+    // 32-byte root key
+    const unsigned char ROOT_KEY[32] = {
+        0xd4, 0xc7, 0xe9, 0xa9, 0xfe, 0x3b, 0x0b, 0x2b,
+        0x9c, 0x1f, 0x63, 0x48, 0xd5, 0xe7, 0xa1, 0x0f,
+        0xb8, 0xf5, 0x49, 0xc7, 0xe6, 0x75, 0x4a, 0x8c,
+        0x1d, 0xe2, 0xf0, 0xa9, 0xbb, 0xd3, 0xe5, 0xf2
+    };
+    // 32-byte Bob private key
+    const unsigned char BOB_PRIV[32] = {
+        0x8c, 0x3a, 0x11, 0xd0, 0xb6, 0x9f, 0x7c, 0x2e,
+        0x34, 0xe9, 0xa8, 0xf0, 0xb6, 0xc1, 0xd9, 0xe2,
+        0xf7, 0xa5, 0xc3, 0xb8, 0xa2, 0xe4, 0xd9, 0xf0,
+        0xb6, 0xc5, 0x03, 0xd2, 0xa1, 0xe0, 0xf7, 0xc9
+    };
+    const unsigned char ALICE_PRIV[32] = {
+        0x77,0x07,0x6d,0x0a,0x73,0x18,0xa5,0x7d
+       ,0x3c,0x16,0xc1,0x72,0x51,0xb2,0x66,0x45
+       ,0xdf,0x4c,0x2f,0x87,0xeb,0xc0,0x99,0x2a
+       ,0xb1,0x77,0xfb,0xa5,0x1d,0xb9,0x2c,0x2a
+    };
+    unsigned char BOB_PUBLIC[32] = {0x00};
+    unsigned char ALICE_PUBLIC[32] = {0x00};
+    scalar_mult(BOB_PUBLIC, BOB_PRIV, _9);//get bobs public key
+    scalar_mult(ALICE_PUBLIC, ALICE_PRIV, _9);
+    Double_Ratchet alice;
+    Double_Ratchet bob;
+    for(int i = 0 ; i < 32; i++) {
+        alice.root_key[i] = ROOT_KEY[i];
+        bob.root_key[i] = ROOT_KEY[i];
+    }
+    init_double_ratchet(&alice, BOB_PUBLIC);
+    resp_double_ratchet(&bob, alice.dhs, BOB_PRIV);
+    init_double_ratchet(&bob, ALICE_PUBLIC);
+    resp_double_ratchet(&alice, bob.dhs, ALICE_PRIV);
+    unsigned char message[256] = "testing testing testing";
+    uint32_t message_len = 24;
+    Message msg = {0};
+    pcks7_pad(message, 25, &message_len);
+    send_message_dr(&alice, message, message_len, &msg);
+    printf("\nALICE ciphertext:\n");
+    printkey(msg.ciphertext);
+    printf("BOB\n");
 
 }

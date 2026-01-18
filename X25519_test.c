@@ -31,20 +31,6 @@ unsigned char bobpk[32] = {
 ,0xad,0xfc,0x7e,0x14,0x6f,0x88,0x2b,0x4f
 } ;
 
-void randombytes(unsigned char *buf, unsigned long long length)
-{
-    // not needed
-}
-
-void printkey(unsigned char *buf)
-{
-  for (int i = 0;i < 32;++i) {
-    if (i > 0) printf(","); else printf(" ");
-    printf("0x%02x",(unsigned int) buf[i]);
-    if (i % 8 == 7) printf("\n");
-  }
-}
-
 typedef unsigned char u8;
 typedef long long i64;
 typedef i64 field_elem[16];
@@ -199,56 +185,56 @@ void x25519(u8 *out, const u8 *pk, const u8 *sk)
   scalarmult(out, sk, pk);
 }
 
-int main()
-{
-          //Test_Operations();
-          u8 S1_big_endian[32] = { // Big-endian test vector
-            0xa5, 0x46, 0xe3, 0x6b, 0xf0, 0x52, 0x7c, 0x9d,
-            0x3b, 0x16, 0x15, 0x4b, 0x82, 0x46, 0x5e, 0xdd,
-            0x62, 0x14, 0x4c, 0x0a, 0xc1, 0xfc, 0x5a, 0x18,
-            0x50, 0x6a, 0x22, 0x44, 0xba, 0x44, 0x9a, 0xc4
-        };
+// int main()
+// {
+//           //Test_Operations();
+//           u8 S1_big_endian[32] = { // Big-endian test vector
+//             0xa5, 0x46, 0xe3, 0x6b, 0xf0, 0x52, 0x7c, 0x9d,
+//             0x3b, 0x16, 0x15, 0x4b, 0x82, 0x46, 0x5e, 0xdd,
+//             0x62, 0x14, 0x4c, 0x0a, 0xc1, 0xfc, 0x5a, 0x18,
+//             0x50, 0x6a, 0x22, 0x44, 0xba, 0x44, 0x9a, 0xc4
+//         };
     
-        u8 U1_big_endian[32] = { // Big-endian test vector
-            0xe6, 0xdb, 0x68, 0x67, 0x58, 0x30, 0x30, 0xdb,
-            0x35, 0x94, 0xc1, 0xa4, 0x24, 0xb1, 0x5f, 0x7c,
-            0x72, 0x66, 0x24, 0xec, 0x26, 0xb3, 0x35, 0x3b,
-            0x10, 0xa9, 0x03, 0xa6, 0xd0, 0xab, 0x1c, 0x4c
-        };
+//         u8 U1_big_endian[32] = { // Big-endian test vector
+//             0xe6, 0xdb, 0x68, 0x67, 0x58, 0x30, 0x30, 0xdb,
+//             0x35, 0x94, 0xc1, 0xa4, 0x24, 0xb1, 0x5f, 0x7c,
+//             0x72, 0x66, 0x24, 0xec, 0x26, 0xb3, 0x35, 0x3b,
+//             0x10, 0xa9, 0x03, 0xa6, 0xd0, 0xab, 0x1c, 0x4c
+//         };
     
-        u8 S1[32];
-        u8 U1[32];
+//         u8 S1[32];
+//         u8 U1[32];
     
-        //reverse the input.
-        for (int i = 0; i < 32; i++){
-            S1[i] = S1_big_endian[31-i];
-            U1[i] = U1_big_endian[31-i];
-        }
-        u8 out[32];
+//         //reverse the input.
+//         for (int i = 0; i < 32; i++){
+//             S1[i] = S1_big_endian[31-i];
+//             U1[i] = U1_big_endian[31-i];
+//         }
+//         u8 out[32];
     
-        scalarmult(out, U1, S1);
+//         scalarmult(out, U1, S1);
     
-        printf("\nout: ");
-        for (int i = 0; i < 32; i++) {
-            printf("%02x", out[i]);
-        }
-        printf("\n");
-        fflush(stdout);
-  int i;
-  unsigned char key[32];
-  scalarmult_base(key, alicesk);
-  printkey(key);
-  printf("\n");
+//         printf("\nout: ");
+//         for (int i = 0; i < 32; i++) {
+//             printf("%02x", out[i]);
+//         }
+//         printf("\n");
+//         fflush(stdout);
+//   int i;
+//   unsigned char key[32];
+//   scalarmult_base(key, alicesk);
+//   printkey(key);
+//   printf("\n");
 
-  scalarmult_base(key, bobsk);
-  printkey(key);
-  printf("\n");
+//   scalarmult_base(key, bobsk);
+//   printkey(key);
+//   printf("\n");
 
-  scalarmult(key, alicesk, bobpk);
-  printkey(key);
-  printf("\n");
+//   scalarmult(key, alicesk, bobpk);
+//   printkey(key);
+//   printf("\n");
 
-  scalarmult(key, bobsk, alicepk);
-  printkey(key);
-  return 0;
-}
+//   scalarmult(key, bobsk, alicepk);
+//   printkey(key);
+//   return 0;
+// }

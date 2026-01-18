@@ -1,7 +1,8 @@
-#include "session_manager.h"
 #include <stdio.h>
 #include <string.h>
-
+#include "double_ratchet.h"
+#include "cbc.h"
+#include "session_manager.h"
 // Simple random bytes function for demo
 void randombytes(unsigned char *out, size_t len) {
     for(size_t i = 0; i < len; i++) {
@@ -9,18 +10,6 @@ void randombytes(unsigned char *out, size_t len) {
     }
 }
 
-// Simple XOR encryption for demo
-// shit is terrible
-//TODO: replace with AES 
-static void simple_crypt(unsigned char *output, const unsigned char *input, uint32_t len, const unsigned char *key) {
-    unsigned char stream[MAX_MESSAGE_LEN];
-    unsigned char info[1] = {0x00};
-    
-    hkdf_expand(len, info, 1, (uint8_t*)key, 32, stream);
-    for(uint32_t i = 0; i < len; i++) {
-        output[i] = input[i] ^ stream[i];
-    }
-}
 int session_manager_init(SessionManager *sm) {
     sm->session_count = 0;
     for(int i = 0; i < MAX_SESSIONS; i++) {
@@ -30,42 +19,76 @@ int session_manager_init(SessionManager *sm) {
 }
 int session_manager_find_session(SessionManager *sm, const unsigned char *remote_identity) {
     for(int i = 0; i < MAX_SESSIONS; i++) {
-        if(sm->sessions[i].active && memcmp(sm->sessions[i].remote_identity, remote_identity, 32) == 0) {
+        if((memcmp(sm->sessions[i].remote_identity, remote_identity, 32) == 0)) {
             return i;
         }
     }
     return -1;
 }
-int session_manager_create_session(SessionManager *sm, const unsigned char *shared_secret, const unsigned char *remote_identity) {
+static int sm_get_session_idx(SessionManager *sm) {
     if(sm->session_count >= MAX_SESSIONS) return -1;
     int slot = -1;
     for(int i = 0; i < MAX_SESSIONS; i++) {
-        if(!sm->sessions[i].active) {
+        if(sm->sessions[i].active == 0) {
             slot = i;
             break;
         }
     }
-    if(slot == -1) return -1;
+    return slot;
+}
+int session_manager_create_session(
+    SessionManager *sm, 
+    const unsigned char *shared_secret, 
+    const unsigned char *remote_identity, 
+    unsigned char *prekey_public) {
+    //initiator
+    int idx = session_manager_find_session(sm, remote_identity);
+    if(idx < 0) {
+        idx = sm_get_session_idx(sm);
+        if(idx < 0) return -1;
+    }
     
-    Session *session = &sm->sessions[slot];
-
+    Session *session = &sm->sessions[idx];
+    if(session->active == 0) {
+        for(int i = 0; i < 32; i++) {
+            session->remote_identity[i] = remote_identity[i];
+            session->ratchet.root_key[i] = shared_secret[i];
+        }
+        session->active = 1;
+    }
+    printf("\nSession idx: %d remote_id\n", idx);
+    init_double_ratchet(&session->ratchet, prekey_public);
+    printf("\nSend Key:\n");
+    for(int i = 0; i< 32; i++) {
+        printf("%02x", session->ratchet.cks[i]);
+    }
+    return 1;
+}
+int session_manager_accept_session(
+    SessionManager *sm, 
+    const unsigned char *shared_secret,  
+    const unsigned char *remote_identity, 
+    const unsigned char *dh_public, 
+    const unsigned char *prekey_private) {
+    //responder
+    int idx = session_manager_find_session(sm, remote_identity);
+    if(idx < 0) {
+        idx = sm_get_session_idx(sm);
+        if(idx  < 0) return -1;
+    }
+    Session *session = &sm->sessions[idx];
+    if(session->active == 0) {
+        for(int i = 0; i < 32; i++) {
+            session->remote_identity[i] = remote_identity[i];
+            session->ratchet.root_key[i] = shared_secret[i];
+        }
+        session->active = 1;
+    }
+    resp_double_ratchet(&session->ratchet, dh_public, prekey_private);
+    printf("\nRecv Key:\n");
+    for(int i = 0; i< 32; i++) {
+        printf("%02x", session->ratchet.ckr[i]);
+    }
+    return 1;
 }
 
-
-//TODO: replace
-int session_send_message(SessionManager *sm, int session_id, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {
-    if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
-    if(len > MAX_MESSAGE_LEN) return -1;
-    Session *session = &sm->sessions[session_id];
-
-    return len;
-}
-//TODO: replace
-int session_receive_message(SessionManager *sm, int session_id, const unsigned char *ciphertext, uint32_t len, unsigned char *plaintext, const unsigned char *remote_ratchet_pub) {
-    if(session_id < 0 || session_id >= MAX_SESSIONS || !sm->sessions[session_id].active) return -1;
-    if(len > MAX_MESSAGE_LEN) return -1;
-    
-    Session *session = &sm->sessions[session_id];
-    
-    return 0;
-}

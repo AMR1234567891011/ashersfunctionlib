@@ -13,9 +13,11 @@ int wasm_init_sessions() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-int wasm_new_session(const unsigned char *shared_secret, const unsigned char *remote_identity) {
+int wasm_new_session(const unsigned char *shared_secret, 
+    const unsigned char *remote_identity) {
     return session_manager_create_session(&global_sm, shared_secret, remote_identity);
 }
+EMSCRIPTEN_KEEPALIVE(const unsigned char *)
 
 EMSCRIPTEN_KEEPALIVE
 int wasm_send_message(int session_idx, const unsigned char *plaintext, uint32_t len, unsigned char *ciphertext, unsigned char *new_ratchet_pub_out) {

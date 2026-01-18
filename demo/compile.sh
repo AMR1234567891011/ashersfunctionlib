@@ -9,5 +9,5 @@ emcc -O3 \
   -g \
   -sASSERTIONS=2 \
   -sERROR_ON_UNDEFINED_SYMBOLS=0 \
-  -o static/crypto_wasm.js \
+  -o ./static/crypto_wasm.js \
   ../main_test.c ../sha256.c ../X25519.c ../X3DH.c ../session_manager.c ../session_test.c ../wasm_interface.c

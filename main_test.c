@@ -4,6 +4,7 @@
 #include "X3DH.h"
 #include "session_test.h"
 #include "double_ratchet_test.h"
+#include "session_manager_test.h"
 /* hash test msg
 I was working in the lab late one night When my eyes beheld an eerie sight For my monster, from his slab, began to rise And suddenly, to my surprise (He did the Mash) he did the Monster Mash (The Monster Mash) it was a graveyard smash (He did the Mash) it caught on in a flash (He did the Mash) he did the Monster Mash From my laboratory in the Castle east To the master bedroom, where the vampires feast The ghouls all came from their humble abodes To get a jolt from my electrodes
 */
@@ -74,7 +75,7 @@ void X25519_test(){
        ,0x74,0x8b,0x7d,0xdc,0xb4,0x3e,0xf7,0x5a
        ,0x0d,0xbf,0x3a,0x0d,0x26,0x38,0x1a,0xf4
        ,0xeb,0xa4,0xa9,0x8e,0xaa,0x9b,0x4e,0x6a
-       } ;
+       };
        
     unsigned char bobsk[32] = {//bobs secret key
         0x5d,0xab,0x08,0x7e,0x62,0x4a,0x8a,0x4b
@@ -183,8 +184,15 @@ void main_tests() {
 
     //session_demo_test();
 
-    printf("\nDOUBLE RATCHET TEST");
+    printf("\nDOUBLE RATCHET TEST\n");
     double_ratchet_init_test();
+    printf("\nDOUBLE RATCHET SEND TEST\n");
+    double_ratchet_message_test();
+    
+    printf("\nSESSION MANAGER TEST\n");
+    session_init_test();
+
+    printf("\nEnd of Tests\n");
 }
 int main(){
     main_tests();

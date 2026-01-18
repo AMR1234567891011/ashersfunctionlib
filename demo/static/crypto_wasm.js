@@ -26,7 +26,7 @@
     return;
   }
 
-  var currentSafariVersion = userAgent.includes("Safari/") && userAgent.match(/Version\/(\d+\.?\d*\.?\d*)/) ? humanReadableVersionToPacked(userAgent.match(/Version\/(\d+\.?\d*\.?\d*)/)[1]) : TARGET_NOT_SUPPORTED;
+  var currentSafariVersion = userAgent.includes("Safari/") && !userAgent.includes("Chrome/") && userAgent.match(/Version\/(\d+\.?\d*\.?\d*)/) ? humanReadableVersionToPacked(userAgent.match(/Version\/(\d+\.?\d*\.?\d*)/)[1]) : TARGET_NOT_SUPPORTED;
   if (currentSafariVersion < 150000) {
     throw new Error(`This emscripten-generated code requires Safari v${ packedVersionToHumanReadable(150000) } (detected v${currentSafariVersion})`);
   }
@@ -953,6 +953,12 @@ async function createWasm() {
   var __abort_js = () =>
       abort('native code called abort()');
 
+  function _double_ratchet_init_test(...args
+  ) {
+  abort('missing function: double_ratchet_init_test');
+  }
+  _double_ratchet_init_test.stub = true;
+
   var _emscripten_get_now = () => performance.now();
   
   var getHeapMax = () =>
@@ -1876,6 +1882,8 @@ var wasmImports = {
   __handle_stack_overflow: ___handle_stack_overflow,
   /** @export */
   _abort_js: __abort_js,
+  /** @export */
+  double_ratchet_init_test: _double_ratchet_init_test,
   /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
   /** @export */

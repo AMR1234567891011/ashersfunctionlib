@@ -1,4 +1,3 @@
-
 #include <stdint.h>
 #include <stdio.h>
 #include "aes.h"
@@ -48,7 +47,7 @@ void block_xor_i(uint8_t *a, uint8_t * b) {// a = a xor b
 void cbc_encrypt(uint8_t *IV, uint8_t* plaintext, uint32_t plaintext_len, uint8_t *key, uint8_t *ciphertext, uint32_t *ciphertext_len) {
     uint32_t round_keys[60];
     uint8_t *prev_block = IV;
-    *ciphertext_len = plaintext_len;
+    ciphertext_len = &plaintext_len;
     key_expansion(key, round_keys);
     for(int i = 0; i < (plaintext_len / 16); i++) {//assuming pcks7 padding
         uint8_t *curr_pt = &plaintext[i * 16];
@@ -103,8 +102,6 @@ void cbc_tests(){
     for(int i  = 0; i < output_len; i++) {
         printf("%c", output[i]);
     }
-
-
 
     uint8_t plaintext[32] = {0x00};
     uint8_t ciphertext_2[32] = {0x00};
