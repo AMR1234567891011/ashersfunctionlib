@@ -2,3 +2,5 @@
 *.js
 .vscode
 ./demo/static
+build/
+demo/static
