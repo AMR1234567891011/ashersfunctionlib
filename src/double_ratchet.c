@@ -27,7 +27,7 @@ void init_double_ratchet(Double_Ratchet *dr, unsigned char *prekey_public) {//in
         dr->cks[i] = dr->kdf_out[i + 32];
     }
 }
-void resp_double_ratchet(Double_Ratchet *dr, unsigned char *dh_public, unsigned char *prekey_private) {//responder -> receives inititors public key so computes it receving chain and sending chain.
+void resp_double_ratchet(Double_Ratchet *dr, const unsigned char *dh_public, const unsigned char *prekey_private) {//responder -> receives inititors public key so computes it receving chain and sending chain.
     scalar_mult(dr->dh_priv, prekey_private, dh_public);
     hkdf_extract_salt(dr->dh_priv, 32, dr->root_key, 32, dr->prk);//generate keying material
     hkdf_expand(64, &info, 1, dr->prk, 32, dr->kdf_out);
@@ -49,7 +49,7 @@ void send_message_dr(
         msg_key[i] = dr->kdf_out[i  + 32];
         msg->pub_key[i] = dr->dhs[i];
     }
-    cbc_encrypt(msg->IV, (uint8_t *)message, message_len, msg_key, (uint8_t *)msg->ciphertext, (uint32_t *)&msg->ciphertext_len);
+    cbc_encrypt(msg->IV, (uint8_t *)message, message_len, msg_key, (uint8_t *)msg->ciphertext, msg->ciphertext_len);//changed last arg from point to int
 }
 
 void receive_message_dr(

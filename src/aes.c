@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include "../include/aes.h"
 #define Nr 14
 #define Nk 8
 static const uint32_t round_constants[] = {
@@ -180,6 +181,28 @@ void shift_rows(uint8_t *state) { //column major in fips actually means row majo
     state[row + 2*4] = temp[1];
     state[row + 3*4] = temp[2];
 }
+void rot_word(uint32_t *W){//takes Word[a0,a1,a2,a3] into word[a1,a2,a3,a0]
+    uint32_t temp = *W;
+    uint32_t rot = (temp << 8) | (temp >> 24);
+    *W = rot;
+}
+void sub_bytes(uint8_t *b, uint32_t b_length){
+    int i;
+    for (i = 0; i < b_length; i++){
+        b[i] = Sbox[b[i]];
+        //b[i] = Sbox[(b[i] & 0xF0) << 4 | b[i] & 0x0F];
+    }
+}
+void sub_word(uint32_t *W){//pass &mem to this!
+    //sub_bytes((uint8_t *)W, 4); AES is big endian
+    uint32_t x = *W;
+
+    *W =
+        ((uint32_t)Sbox[(x >> 24) & 0xFF] << 24) |
+        ((uint32_t)Sbox[(x >> 16) & 0xFF] << 16) |
+        ((uint32_t)Sbox[(x >>  8) & 0xFF] <<  8) |
+        ((uint32_t)Sbox[x & 0xFF]);
+}
 void key_expansion(uint8_t *Key, uint32_t *out){//key is 4 words and output is 60
     int i = 0;
 
@@ -205,28 +228,6 @@ void key_expansion(uint8_t *Key, uint32_t *out){//key is 4 words and output is 6
         i++;
     }
     return;
-}
-void rot_word(uint32_t *W){//takes Word[a0,a1,a2,a3] into word[a1,a2,a3,a0]
-    uint32_t temp = *W;
-    uint32_t rot = (temp << 8) | (temp >> 24);
-    *W = rot;
-}
-void sub_bytes(uint8_t *b, uint32_t b_length){
-    int i;
-    for (i = 0; i < b_length; i++){
-        b[i] = Sbox[b[i]];
-        //b[i] = Sbox[(b[i] & 0xF0) << 4 | b[i] & 0x0F];
-    }
-}
-void sub_word(uint32_t *W){//pass &mem to this!
-    //sub_bytes((uint8_t *)W, 4); AES is big endian
-    uint32_t x = *W;
-
-    *W =
-        ((uint32_t)Sbox[(x >> 24) & 0xFF] << 24) |
-        ((uint32_t)Sbox[(x >> 16) & 0xFF] << 16) |
-        ((uint32_t)Sbox[(x >>  8) & 0xFF] <<  8) |
-        ((uint32_t)Sbox[x & 0xFF]);
 }
 
 void cipher(uint8_t *in, uint32_t *w) {
@@ -376,14 +377,4 @@ void test_aes256_cipher(void) {//https://csrc.nist.gov/CSRC/media/Projects/Crypt
         printf("\n - \n");
     }
 
-}
-// int main() {
-//     //test_aes256_key_expansion();
-//     test_aes256_cipher();
-// }
-void aes_cbc_256_encrypt(){
-    return;
-}
-void aes_cbc_256_decrypt(){
-    return;
 }

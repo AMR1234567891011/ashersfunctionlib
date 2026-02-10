@@ -27,7 +27,7 @@ typedef struct {
 } Message;
 
 void init_double_ratchet(Double_Ratchet *dr, unsigned char *prekey_public);
-void resp_double_ratchet(Double_Ratchet *dr, unsigned char *dh_public, unsigned char *prekey_private);
+void resp_double_ratchet(Double_Ratchet *dr, const unsigned char *dh_public, const unsigned char *prekey_private);
 void send_message_dr(Double_Ratchet *dr, unsigned char *message, uint32_t message_len, Message *msg);
 void recv_message_dr(Double_Ratchet *dr, unsigned char *ciphertext, uint32_t ciphertext_len);
 #endif
